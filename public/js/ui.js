@@ -8,6 +8,7 @@
 //   EC.ui.disclosure(details) animated <details> (also works on every details.disclosure automatically)
 //   EC.ui.menu(button, menu)  popover menu
 //   EC.ui.switchHtml / iconToggleHtml / pill   markup helpers so pages never repeat markup
+//   EC.ui.checkKind / checkTag / stepsText     who decides a check (Code / AI / Real browser / You check) + browser steps in plain words
 // Every animation here is skipped when the reader prefers reduced motion.
 (function () {
   "use strict";
@@ -327,6 +328,49 @@
   ui.pill = function (kind, text, o) {
     o = o || {};
     return '<span class="pill pill-' + esc(kind) + (o.pop ? " pop" : "") + (o.cls ? " " + o.cls : "") + '">' + esc(text) + "</span>";
+  };
+
+  // ------------------------------------------------------------------ checks: who decides, and browser steps
+  // checkKind(check, o): "code" | "ai" | "browser" | "human".
+  //   browser_count and ai_vision are both done in the real browser. "human" (You check) is only a legacy
+  //   `manual` check, or o.handed = true when a result check was handed to a person at run time (passed null).
+  ui.checkKind = function (c, o) {
+    c = c || {};
+    if (c.rule === "manual" || c.decided_by === "human") return "human";
+    if (o && o.handed) return "human";
+    if (c.rule === "browser_count" || c.rule === "ai_vision") return "browser";
+    if (c.rule === "ai_judge" || c.decided_by === "ai") return "ai";
+    return "code";
+  };
+  ui.checkTag = function (kind, cls) {
+    var c = cls ? " " + cls : "";
+    if (kind === "browser") return '<span class="pill pill-browser has-icon' + c + '"><i data-lucide="globe" aria-hidden="true"></i>Real browser</span>';
+    if (kind === "ai") return '<span class="pill pill-human' + c + '">AI</span>';
+    if (kind === "human") return '<span class="pill pill-human' + c + '">You check</span>';
+    return '<span class="pill pill-neutral' + c + '">Code</span>';
+  };
+  // One browser action in plain words (no capital letter at the start).
+  function stepWords(s) {
+    s = s || {};
+    var out;
+    if (s.goto != null) out = "opens " + s.goto;
+    else if (s.click != null) {
+      var t = String(s.click);
+      if (/^css=/i.test(t)) {
+        var sel = t.replace(/^css=/i, "");
+        out = /menu/i.test(sel) ? "clicks the menu button" : "clicks " + sel;
+      } else out = "clicks \u201c" + t.replace(/^text=/i, "") + "\u201d";
+      if (s.optional) out += " (if there)";
+    } else if (s.wait != null) out = "waits " + s.wait + " s";
+    else if (s.scroll != null) out = s.scroll === "bottom" ? "scrolls to the bottom" : "scrolls";
+    else out = "";
+    return out;
+  }
+  // "Opens /products/solaris \u2192 clicks \u201cSand\u201d"  (empty string when there are no steps)
+  ui.stepsText = function (steps) {
+    if (!Array.isArray(steps) || !steps.length) return "";
+    var s = steps.map(stepWords).filter(Boolean).join(" \u2192 ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
   // ------------------------------------------------------------------ remembered project / run

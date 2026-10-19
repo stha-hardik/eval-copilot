@@ -711,9 +711,13 @@ button.input-trail:hover { color: var(--accent-strong); }
 .pill-human { --dot: var(--human); background: var(--human-bg); color: var(--human-text); }
 .pill-same, .pill-neutral { --dot: var(--muted); background: var(--neutral-bg); color: var(--muted); }
 .pill-priority { --dot: var(--accent); background: var(--human-bg); color: var(--accent-strong); }
+/* "Real browser": accent-soft family like AI, but with its own deeper tint and a globe icon */
+.pill-browser { --dot: var(--accent); background: linear-gradient(135deg, rgba(122, 156, 198, 0.34), rgba(78, 114, 161, 0.18)); color: var(--accent-strong); }
 .pill-running { --dot: var(--accent); background: var(--human-bg); color: var(--human-text); }
 .pill-running::before { animation: ec-dot-pulse 1.4s var(--ease-out) infinite; }
 @keyframes ec-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* Steps of a browser check, in plain words under the check (small, muted) */
+.chk-steps { display: block; margin: 2px 0 0; font-size: var(--fs-s); line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
 /* A pill that keeps a small Lucide icon instead of the dot */
 .pill.has-icon::before { display: none; }
 .pill.has-icon [data-lucide], .pill.has-icon svg.lucide { display: inline-block; width: 14px; height: 14px; flex: none; }

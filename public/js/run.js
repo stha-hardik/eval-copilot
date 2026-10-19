@@ -61,23 +61,34 @@
       case "count_equals": return "Count is right: " + x;
       case "min_results": return "At least " + x + " " + plural(Number(x), "result", "results");
       case "ai_judge": return x || "The AI judges the page";
+      case "browser_count": return "Count after real clicks: " + x;
+      case "ai_vision": return "AI looks at the screen: " + x;
       case "manual": return "You look: " + x;
       default: return x || c.rule || "Check";
     }
   }
-  function decidedBy(c) {
-    if (c.decided_by === "ai") return "AI";
-    if (c.decided_by === "human" || c.rule === "manual") return "You";
-    return "Code";
-  }
   function isPending(c) { return c.passed === null || c.passed === undefined; }
-  function pendingManual(row) {
-    return (row.checks || []).filter((c) => isPending(c) && (c.rule === "manual" || c.decided_by === "human"));
+  // Every check still waiting for a person: old "you look" checks and browser checks handed over at run time.
+  function pendingChecks(row) {
+    return (row.checks || []).filter(isPending);
+  }
+  // A row was handed to a person when the server says so (via "human" or a reason).
+  function handedOver(r) { return !!r && (r.via === "human" || !!r.human_reason); }
+  function handedReason(r) {
+    if (!handedOver(r)) return "";
+    if (r.human_reason) return String(r.human_reason);
+    const c = pendingChecks(r).filter((x) => x.why)[0];
+    return c ? String(c.why) : "";
+  }
+  // The question a person answers: the yes/no question when there is one, else the check in plain words.
+  function questionText(c) {
+    const asks = c.rule === "ai_vision" || c.rule === "ai_judge" || c.rule === "manual" || c.decided_by === "human";
+    return (asks && c.expected) ? String(c.expected) : ruleText(c);
   }
   function whyText(r) {
     const why = r.why || "";
     if (r.outcome === "cant_test" && /blocked/i.test(why)) return "The site blocked us, so we can’t test this.";
-    if (!why && pendingManual(r).length) return "Waiting for you to look at the site.";
+    if (!why && pendingChecks(r).length) return "Waiting for you to look at the site.";
     return why;
   }
 
@@ -88,7 +99,7 @@
       if (r.outcome === "pass") c.pass++;
       else if (r.outcome === "fail") c.fail++;
       else c.cant++;
-      c.manual += pendingManual(r).length;
+      c.manual += pendingChecks(r).length;
     });
     return c;
   }
@@ -266,13 +277,23 @@
       else if (c.passed) res = '<span class="pill pill-pass">Pass</span>';
       else res = '<span class="pill pill-fail">Fail</span>';
     }
+    const kind = EC.ui.checkKind(c, { handed: !!r && pending });
+    const st = EC.ui.stepsText(c.steps);
     return '<li class="check-item">' +
-      '<div class="check-line"><span class="pill pill-neutral by" title="Who decided">' + e(decidedBy(c)) + "</span>" +
+      '<div class="check-line">' + EC.ui.checkTag(kind, "by") +
       '<span class="check-what">' + e(ruleText(c)) + "</span>" + res + "</div>" +
+      (st ? '<p class="chk-steps">' + e(st) + "</p>" : "") +
       (r && c.why ? '<p class="check-why">' + e(c.why) + "</p>" : "") + "</li>";
   }
 
   function deviceChip(d) { return '<span class="chip chip-sm">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>"; }
+  // "Real browser" when we clicked through the page; "You check" when a person has to look.
+  function viaBadge(r) {
+    if (!r) return "";
+    if (handedOver(r)) return EC.ui.checkTag("human", "via-badge");
+    if (r.via === "browser") return EC.ui.checkTag("browser", "via-badge");
+    return "";
+  }
 
   // one raised row-card; o = {pill, showed, side, checks, rid, cls, enter, i}
   function cardHtml(item, d, o) {
@@ -281,16 +302,16 @@
       '<span class="rc-num" title="Pair number">' + e(num(item.position)) + "</span>" +
       '<div class="rc-body"><div class="rc-top"><h3 class="rc-title">' + e(item.user_does) + "</h3>" +
         (item.is_priority ? '<span class="pill pill-priority">Priority</span>' : "") +
-        deviceChip(d) + o.pill + "</div>" + o.showed + "</div>" +
+        deviceChip(d) + (o.via || "") + o.pill + "</div>" + o.showed + "</div>" +
       '<div class="rc-side">' + (o.side || "") + "</div>" +
       (o.checks || "") + "</article>";
   }
 
   function sideHtml(r) {
-    const pend = pendingManual(r);
+    const pend = pendingChecks(r);
     if (pend.length) {
       return pend.map((c) =>
-        '<div class="rc-q"><span class="label-caps">Question</span><p>' + e(c.expected || ruleText(c)) + "</p>" +
+        '<div class="rc-q"><span class="label-caps">Question</span><p>' + e(questionText(c)) + "</p>" +
         (c.id != null
           ? '<div class="manual-actions">' +
             '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="true">' + ic("check") + "Looks right</button>" +
@@ -309,7 +330,7 @@
 
   function checksHtml(r) {
     if (!(r.checks && r.checks.length)) return "";
-    const pend = pendingManual(r).length;
+    const pend = pendingChecks(r).length;
     const isOpen = S.detailsOpen[r.result_id] !== undefined ? S.detailsOpen[r.result_id] : false;
     return '<div class="rc-checks"><details class="disclosure disclosure-inline checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
       '<summary><span class="disclosure-title">Checks (' + r.checks.length + ")</span>" +
@@ -344,9 +365,12 @@
           '<button type="button" class="disclosure-btn" data-action="more" aria-expanded="' + (open ? "true" : "false") + '"' + (open ? "" : " hidden") + ">" +
             "<span>" + (open ? "Less" : "More") + '</span><i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i></button>'
         : '<div class="rc-showed"><span class="rc-showed-label">The site showed:</span> nothing came back.</div>') +
+        (handedReason(r)
+          ? '<div class="banner banner-info rc-handed" role="note"><span class="banner-icon">' + ic("info") + '</span><div class="banner-body"><span>' + e(handedReason(r)) + "</span></div></div>"
+          : "") +
         (r.status_code != null ? '<div class="status-code">Status ' + e(r.status_code) + "</div>" : "") + "</div>";
       return cardHtml(item, d, {
-        rid: r.result_id, pill: outcomePill(r.outcome, pop), showed: showed, side: sideHtml(r), checks: checksHtml(r),
+        rid: r.result_id, pill: outcomePill(r.outcome, pop), via: viaBadge(r), showed: showed, side: sideHtml(r), checks: checksHtml(r),
         enter: animate, i: idx,
       });
     }).join("");

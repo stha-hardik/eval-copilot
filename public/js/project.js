@@ -26,19 +26,23 @@
   const WHO = {
     code: { label: "Code", rules: ["status_ok", "text_has", "text_absent", "count_equals", "min_results"] },
     ai: { label: "AI", rules: ["ai_judge"] },
-    human: { label: "You", rules: ["manual"] },
+    browser: { label: "Real browser", rules: ["browser_count", "ai_vision"] },
   };
+  // who = the choice in "Who decides"; by = the decided_by the server stores; steps = shows the Steps box.
+  // `manual` (a person looks) still exists on old pairs but is never offered: it is turned into a screen check.
   const RULE = {
-    status_ok: { who: "code", kind: "Page opens", label: "Nothing to fill in", ph: "" },
-    text_has: { who: "code", kind: "Shows text", label: "Words it should show", ph: "Solaris" },
-    text_absent: { who: "code", kind: "Doesn't show text", label: "Words it should not show", ph: "No results found" },
-    count_equals: { who: "code", kind: "Count is right", label: "What the count should be", ph: "item_count=1" },
-    min_results: { who: "code", kind: "At least N results", label: "Smallest number of results", ph: "3" },
-    ai_judge: { who: "ai", kind: "AI question", label: "Question for the AI", ph: "Does the page show the battery runtime?" },
-    manual: { who: "human", kind: "You look", label: "What will you look at?", ph: "Does the photo match the product?" },
+    status_ok: { who: "code", by: "code", kind: "Page opens", label: "Nothing to fill in", ph: "" },
+    text_has: { who: "code", by: "code", kind: "Shows text", label: "Words it should show", ph: "Solaris" },
+    text_absent: { who: "code", by: "code", kind: "Doesn't show text", label: "Words it should not show", ph: "No results found" },
+    count_equals: { who: "code", by: "code", kind: "Count is right", label: "What the count should be", ph: "item_count=1" },
+    min_results: { who: "code", by: "code", kind: "At least N results", label: "Smallest number of results", ph: "3" },
+    ai_judge: { who: "ai", by: "ai", kind: "AI question", label: "Question for the AI (about the page text)", ph: "Does the page show the battery runtime?" },
+    browser_count: { who: "browser", by: "code", kind: "Count after clicks", label: "What the cart count should be", ph: "item_count=1", steps: true },
+    ai_vision: { who: "browser", by: "ai", kind: "AI looks at the screen", label: "What should the shopper see? (a yes/no question)", ph: "Is the menu open and showing the product links?", steps: true },
+    manual: { who: "human", by: "human", kind: "You look", label: "What will you look at?", ph: "Does the photo match the product?" },
   };
 
-  function whoLabel(w) { return (WHO[w] || WHO.code).label; }
+  function ruleOf(c) { return RULE[c.rule] || RULE.status_ok; }
 
   function checkText(c) {
     const e = (c.expected == null ? "" : String(c.expected)).trim();
@@ -49,6 +53,8 @@
       case "count_equals": return "Count is right: " + e;
       case "min_results": return "At least " + e + (e === "1" ? " result" : " results");
       case "ai_judge": return e || "The AI answers a question";
+      case "browser_count": return "Count after real clicks: " + e;
+      case "ai_vision": return "AI looks at the screen: " + e;
       case "manual": return "You look: " + e;
       default: return e || c.rule || "Check";
     }
@@ -60,6 +66,72 @@
       return /\/cart\//.test(url) ? "Adds to cart: " + url : "Sends data to " + url;
     }
     return "Opens " + url;
+  }
+
+  // ---------- Steps: one action per line in plain words <-> the steps JSON ----------
+  // open /products/solaris | click Sand | click css=summary[aria-label=Menu] | click Menu (if there) | wait 2 | scroll to bottom
+  function parseSteps(text) {
+    const steps = [], errors = [];
+    let n = 0;
+    String(text || "").split(/\r?\n/).forEach((raw) => {
+      n++;
+      const line = raw.trim();
+      if (!line) return;
+      const m = /^(\S+)\s*(.*)$/.exec(line);
+      const verb = m[1].toLowerCase();
+      let rest = m[2].trim();
+      const at = "Line " + n + ": ";
+      if (verb === "open" || verb === "goto" || verb === "visit") {
+        if (!rest) { errors.push(at + "say which page to open, like open /products/solaris."); return; }
+        if (/\s/.test(rest)) { errors.push(at + "a page link has no spaces, like /products/solaris."); return; }
+        steps.push({ goto: normPath(rest) });
+      } else if (verb === "click" || verb === "press" || verb === "tap") {
+        let optional = false;
+        const om = /\s*\((?:if there|optional)\)\s*$/i.exec(rest);
+        if (om) { optional = true; rest = rest.slice(0, om.index).trim(); }
+        rest = rest.replace(/^["\u201c\u2018']+|["\u201d\u2019']+$/g, "").trim();
+        if (!rest) { errors.push(at + "say what to click, like click Sand."); return; }
+        let target;
+        if (/^css=/i.test(rest)) {
+          if (!rest.slice(4).trim()) { errors.push(at + "add a selector after css=."); return; }
+          target = "css=" + rest.slice(4).trim();
+        } else if (/^text=/i.test(rest)) {
+          if (!rest.slice(5).trim()) { errors.push(at + "add the words to click after text=."); return; }
+          target = "text=" + rest.slice(5).trim();
+        } else target = "text=" + rest;
+        const st = { click: target };
+        if (optional) st.optional = true;
+        steps.push(st);
+      } else if (verb === "wait") {
+        const wm = /^(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)?$/i.exec(rest);
+        if (!wm) { errors.push(at + "say how many seconds, like wait 2."); return; }
+        const secs = Number(wm[1]);
+        if (!(secs > 0) || secs > 5) { errors.push(at + "we can wait between 0 and 5 seconds."); return; }
+        steps.push({ wait: secs });
+      } else if (verb === "scroll") {
+        if (/^(?:to\s+)?(?:the\s+)?(?:bottom|end)$/i.test(rest)) steps.push({ scroll: "bottom" });
+        else errors.push(at + "we can only scroll to the bottom: scroll to bottom.");
+      } else {
+        errors.push(at + "we don\u2019t know \u201c" + m[1] + "\u201d. Start with open, click, wait or scroll.");
+      }
+    });
+    if (steps.length > 8) errors.push("That is " + steps.length + " actions. We can do up to 8.");
+    return { steps, errors };
+  }
+
+  function stepsToLines(steps) {
+    if (!Array.isArray(steps)) return "";
+    return steps.map((s) => {
+      s = s || {};
+      if (s.goto != null) return "open " + s.goto;
+      if (s.click != null) {
+        const t = String(s.click);
+        return "click " + (/^text=/i.test(t) ? t.slice(5) : t) + (s.optional ? " (if there)" : "");
+      }
+      if (s.wait != null) return "wait " + s.wait;
+      if (s.scroll != null) return "scroll to bottom";
+      return "";
+    }).filter(Boolean).join("\n");
   }
 
   // ---------- Small helpers ----------
@@ -343,6 +415,8 @@
   // ---------- Editors (drafts and in-place edit) ----------
   function newEditor(draft, extra) {
     const d = draft || {};
+    const locked = !!(extra && extra.locked);
+    const reqPath = normPath(d.request_url);
     return Object.assign({
       draft: {
         user_does: d.user_does || "",
@@ -350,11 +424,21 @@
         request_url: d.request_url || "",
         method: d.method === "POST" ? "POST" : "GET",
         bodyText: d.request_body ? JSON.stringify(d.request_body, null, 2) : "",
-        checks: (d.checks || []).map((c) => ({
-          decided_by: c.decided_by || (RULE[c.rule] ? RULE[c.rule].who : "code"),
-          rule: c.rule || "status_ok",
-          expected: c.expected == null ? "" : String(c.expected),
-        })),
+        checks: (d.checks || []).map((c) => {
+          // An old "you look" check becomes "AI looks at the screen" that opens the pair's page.
+          if (!locked && (c.rule === "manual" || c.decided_by === "human")) {
+            return { decided_by: "ai", rule: "ai_vision", expected: c.expected == null ? "" : String(c.expected),
+              steps: null, stepsText: reqPath ? "open " + reqPath : "" };
+          }
+          const rule = c.rule || "status_ok";
+          return {
+            decided_by: (RULE[rule] || RULE.status_ok).by,
+            rule: rule,
+            expected: c.expected == null ? "" : String(c.expected),
+            steps: Array.isArray(c.steps) ? c.steps : null,
+            stepsText: stepsToLines(c.steps),
+          };
+        }),
       },
     }, extra);
   }
@@ -410,15 +494,16 @@
 
   function checkRowHtml(ed, c, i) {
     const k = ed.key;
-    const rule = RULE[c.rule] || RULE.status_ok;
+    const rule = ruleOf(c);
     const whoOpts = Object.keys(WHO).map((w) => [w, WHO[w].label]);
-    const ruleOpts = (WHO[c.decided_by] || WHO.code).rules.map((r) => [r, RULE[r].kind]);
+    const ruleOpts = (WHO[rule.who] || WHO.code).rules.map((r) => [r, RULE[r].kind]);
     const needsText = c.rule !== "status_ok";
     return (
+      '<div class="check-ed" data-i="' + i + '">' +
       '<div class="check-row" data-i="' + i + '">' +
         '<div class="field">' +
           '<label class="label cr-label" for="' + esc(k) + "-c" + i + '-who">Who decides</label>' +
-          '<select class="input" id="' + esc(k) + "-c" + i + '-who" data-f="c.' + i + '.who">' + selectOptions(whoOpts, c.decided_by) + "</select>" +
+          '<select class="input" id="' + esc(k) + "-c" + i + '-who" data-f="c.' + i + '.who">' + selectOptions(whoOpts, rule.who) + "</select>" +
         "</div>" +
         '<div class="field">' +
           '<label class="label cr-label" for="' + esc(k) + "-c" + i + '-rule">Kind</label>' +
@@ -432,15 +517,31 @@
           '<div class="error-msg" data-err="c' + i + '" hidden></div>' +
         "</div>" +
         '<button class="icon-btn" type="button" data-act="rm-check" data-i="' + i + '" aria-label="Remove this check" title="Remove this check">' + icon("trash-2") + "</button>" +
+      "</div>" +
+      (rule.steps
+        ? '<div class="field check-steps" data-field="s' + i + '">' +
+            '<label class="label" for="' + esc(k) + "-c" + i + '-steps">Steps</label>' +
+            '<textarea class="input" id="' + esc(k) + "-c" + i + '-steps" rows="3" data-f="c.' + i + '.steps" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="open /products/solaris&#10;click Sand">' + esc(c.stepsText) + "</textarea>" +
+            '<div class="hint">One action per line: open, click, wait. We never click pay, buy or log in.</div>' +
+            '<div class="error-msg steps-err" data-err="s' + i + '" hidden></div>' +
+          "</div>"
+        : "") +
       "</div>"
     );
+  }
+
+  // One check in a list: who decides, what it looks for, and (for a browser check) its steps in plain words.
+  function checkItemHtml(c) {
+    const st = EC.ui.stepsText(c.steps);
+    return '<li class="chk">' + EC.ui.checkTag(EC.ui.checkKind(c), "who") +
+      '<span class="chk-body"><span>' + esc(checkText(c)) + "</span>" +
+      (st ? '<span class="chk-steps">' + esc(st) + "</span>" : "") + "</span></li>";
   }
 
   function lockedChecksHtml(ed) {
     return (
       '<ul class="check-list">' +
-        ed.draft.checks.map((c) =>
-          '<li class="chk"><span class="pill pill-neutral who">' + esc(whoLabel(c.decided_by)) + "</span><span>" + esc(checkText(c)) + "</span></li>").join("") +
+        ed.draft.checks.map(checkItemHtml).join("") +
       "</ul>" +
       '<p class="locked-note small muted">' + icon("lock") + "<span>Checks are locked after a run, so old results stay comparable.</span></p>"
     );
@@ -505,15 +606,31 @@
           : "") +
         '<div class="stack-sm checks-block">' +
           '<div class="stack-sm"><h4 class="section-title">Checks</h4>' +
-          '<p class="small muted">Each check says what to look for, and who decides: the code, the AI, or you.</p></div>' +
+          '<p class="small muted">Each check says what to look for, and who decides: the code, the AI, or a real browser.</p></div>' +
           checksBody +
         "</div>" +
+        '<div data-ed-banner>' + edBannerHtml(ed) + "</div>" +
         '<div class="row draft-actions">' +
           '<button class="btn btn-secondary" type="button" data-act="save-ed">' + (isEdit ? "Save changes" : "Save pair") + "</button>" +
           '<button class="btn btn-ghost" type="button" data-act="discard-ed">' + (isEdit ? "Cancel" : "Discard") + "</button>" +
         "</div>" +
       "</div>"
     );
+  }
+
+  function edBannerHtml(ed) {
+    return ed.banner
+      ? '<div class="banner banner-error" role="alert"><span class="banner-icon">' + icon("circle-alert") + '</span><div class="banner-body"><span>' + esc(ed.banner) + "</span></div></div>"
+      : "";
+  }
+  function setEdBanner(ed, msg) {
+    ed.banner = msg || "";
+    const root = editorEl(ed.key);
+    const slot = root && root.querySelector("[data-ed-banner]");
+    if (!slot) return;
+    slot.innerHTML = edBannerHtml(ed);
+    icons();
+    if (msg) scrollToEl(slot);
   }
 
   function setEdError(ed, key, msg) {
@@ -554,6 +671,7 @@
       fail("checks", d.checks.length ? "" : "Add at least one check so we can tell a pass from a fail.");
       d.checks.forEach((c, i) => {
         fail("c" + i, c.rule === "status_ok" || String(c.expected).trim() ? "" : "Fill this in.");
+        if (ruleOf(c).steps) fail("s" + i, parseSteps(c.stepsText).errors.join("\n"));
       });
     }
     if (!ok) {
@@ -577,15 +695,17 @@
     };
     if (!ed.locked) {
       out.checks = d.checks.map((c) => ({
-        decided_by: c.decided_by,
+        decided_by: ruleOf(c).by,
         rule: c.rule,
         expected: c.rule === "status_ok" ? null : String(c.expected).trim(),
+        steps: ruleOf(c).steps ? parseSteps(c.stepsText).steps : null,
       }));
     }
     return out;
   }
 
   async function saveEditor(ed, btn) {
+    setEdBanner(ed, "");
     const v = validateEditor(ed);
     if (!v.ok) return;
     const payload = editorPayload(ed, v.body);
@@ -615,7 +735,7 @@
           scrollToEl(document.querySelector('[data-pair="' + String(newPairId).replace(/"/g, "") + '"]'));
         }
       } catch (e) {
-        EC.toast(errMsg(e), "error");
+        setEdBanner(ed, errMsg(e));
       }
     }, "Saving…");
   }
@@ -633,12 +753,8 @@
   // ---------- Pairs list ----------
   function kindChips(p) {
     const seen = [];
-    (p.checks || []).forEach((c) => { if (seen.indexOf(c.decided_by) < 0) seen.push(c.decided_by); });
-    return seen.map((w) => {
-      if (w === "human") return '<span class="pill pill-human">You check</span>';
-      if (w === "ai") return '<span class="pill pill-human">AI</span>';
-      return '<span class="pill pill-neutral">Code</span>';
-    }).join("");
+    (p.checks || []).forEach((c) => { const k = EC.ui.checkKind(c); if (seen.indexOf(k) < 0) seen.push(k); });
+    return ["code", "ai", "browser", "human"].filter((k) => seen.indexOf(k) >= 0).map((k) => EC.ui.checkTag(k)).join("");
   }
 
   function pillsHtml(p) {
@@ -652,8 +768,7 @@
     const ed = state.editors.get("e-" + p.id);
     if (ed) return "<li>" + editorHtml(ed) + "</li>";
     const isNew = p.id === newPairId;
-    const checks = (p.checks || []).map((c) =>
-      '<li class="chk"><span class="pill pill-neutral who">' + esc(whoLabel(c.decided_by)) + "</span><span>" + esc(checkText(c)) + "</span></li>").join("");
+    const checks = (p.checks || []).map(checkItemHtml).join("");
     const liCls = animate && !isNew ? ' class="enter" style="--i:' + idx + '"' : "";
     return (
       "<li" + liCls + ">" +
@@ -870,7 +985,7 @@
       case "edit": if (card) startEdit(card.dataset.pair); break;
       case "priority": if (card) togglePair(card.dataset.pair, "is_priority", !findPair(card.dataset.pair).is_priority, "priority"); break;
       case "add-check":
-        if (ed) { ed.draft.checks.push({ decided_by: "code", rule: "text_has", expected: "" }); refreshEditor(ed); focusLastCheck(ed); }
+        if (ed) { ed.draft.checks.push({ decided_by: "code", rule: "text_has", expected: "", steps: null, stepsText: "" }); refreshEditor(ed); focusLastCheck(ed); }
         break;
       case "rm-check":
         if (ed) { ed.draft.checks.splice(Number(t.dataset.i), 1); refreshEditor(ed, "none"); const b = editorEl(ed.key).querySelector('[data-act="add-check"]'); if (b) b.focus({ preventScroll: true }); }
@@ -909,12 +1024,14 @@
       const c = ed.draft.checks[Number(m[1])];
       if (!c) return;
       if (m[2] === "who") {
-        c.decided_by = t.value;
         c.rule = WHO[t.value].rules[0];
+        c.decided_by = RULE[c.rule].by;
         c.expected = "";
       } else {
+        const wasBrowser = ruleOf(c).who === "browser";
         c.rule = t.value;
-        if (c.rule === "status_ok") c.expected = "";
+        c.decided_by = RULE[c.rule].by;
+        if (c.rule === "status_ok" || (wasBrowser && RULE[c.rule].who === "browser")) c.expected = "";
       }
       refreshEditor(ed, f);
     }
@@ -929,10 +1046,15 @@
         ed.draft[f] = t.value;
         setEdError(ed, f === "bodyText" ? "body" : f, "");
       } else {
-        const m = /^c\.(\d+)\.expected$/.exec(f);
+        const m = /^c\.(\d+)\.(expected|steps)$/.exec(f);
         if (m && ed.draft.checks[Number(m[1])]) {
-          ed.draft.checks[Number(m[1])].expected = t.value;
-          setEdError(ed, "c" + m[1], "");
+          if (m[2] === "steps") {
+            ed.draft.checks[Number(m[1])].stepsText = t.value;
+            setEdError(ed, "s" + m[1], "");
+          } else {
+            ed.draft.checks[Number(m[1])].expected = t.value;
+            setEdError(ed, "c" + m[1], "");
+          }
         }
       }
       return;
@@ -942,6 +1064,11 @@
 
   page.addEventListener("focusout", (ev) => {
     const t = ev.target;
+    const sm = t.dataset && /^c\.(\d+)\.steps$/.exec(t.dataset.f || "");
+    if (sm) {
+      const sed = edFromEvent(t);
+      if (sed && t.value.trim()) setEdError(sed, "s" + sm[1], parseSteps(t.value).errors.join("\n"));
+    }
     if (t.dataset && t.dataset.f === "bodyText") {
       const ed = edFromEvent(t);
       if (ed && t.value.trim()) {

@@ -89,6 +89,12 @@
 }
 .status-code { font-size: var(--fs-s); color: var(--muted); }
 
+/* A browser check handed to a person: calm note under what the site showed */
+.rc-handed { margin-top: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-radius: var(--r-sm); box-shadow: none; font-size: var(--fs-m); }
+.rc-handed .banner-icon { width: 28px; height: 28px; }
+.rc-handed .banner-icon [data-lucide], .rc-handed .banner-icon svg.lucide { width: 16px; height: 16px; }
+.check-item .chk-steps { margin-top: var(--space-xs); }
+
 .rc-side { min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
 .rc-side:empty { display: none; }
 .rc-why { font-size: var(--fs-m); color: var(--muted); overflow-wrap: anywhere; margin: 0; }
