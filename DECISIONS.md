@@ -15,7 +15,7 @@
    `requests` (no supabase SDK), passing the user's access token so RLS always applies.
 6. **Vercel project created by hand.** The Vercel connector in the build session could only read, not
    create projects or set env vars, so the owner created the `eval-copilot` project in the dashboard.
-   Env vars, deployment protection and the production branch are set in the laptop session (see HANDOFF.md).
+   Env vars, deployment protection and the production branch are set in the laptop session.
 7. **One Groq call per device instead of one per check.** "Judge one check" (job 3) is batched: one call
    answers all AI checks of a pair on one device and writes the one-line why for every failed code check.
    Phone and laptop run in parallel. This keeps each pair well under Vercel's 60-second limit.
