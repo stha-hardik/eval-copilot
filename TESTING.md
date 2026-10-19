@@ -64,3 +64,65 @@ M2 RLS: A=tester.a+eval@example.com sees 1 project(s); B=tester.b+eval@example.c
   cart flow (variant lookup → add → read cart), every code check.
 - `tests/test_api.py`: every door end to end against an in-memory stand-in for Supabase that enforces the
   same rules, with a scripted fake site that can be "broken" then "fixed".
+
+## M3 live: Bubl Solar seeded (19 Oct 2026)
+
+`scripts/seed_bubl.py` (as the owner's account) read bublsolar.com's public product list, found the real
+handles (`solaris`, `walkie`, collection `cabinet-lights`, colours Black / Rust Red / Sand), and saved the 10
+pairs through doors 3, 4 (Tidy with AI) and 6, all approved, #8 priority. Before any run, the lead compared
+every proposed check with the live pages and fixed four that could never give a true answer (DECISIONS 24).
+
+## M4 + M5 live by script (Run 1 and Run 2)
+
+`scripts/smoke_live.py` as the owner:
+
+```
+M4 Run 1: 20 rows · pass 20 · fail 0 · can't test 0
+   manual checks waiting for 'Looks right / Looks wrong': 14
+M5 Run 2 (changed): 4 rows; Run 1 untouched: True
+   #8 good now? yes (phone pass, laptop pass)
+   #1 good now? yes (phone pass, laptop pass)
+   compare: {"same": 4}
+```
+
+Looking at the details found two real bugs, fixed and covered by new tests (DECISIONS 26, 27): Shopify's
+hidden "sold out" labels were read as visible text (the AI wrongly said Sand and Rust Red were sold out),
+and one AI check (#10 phone) said "AI could not judge" because Groq's free plan rate limit hit both tries.
+
+## M4 + M5 live through the real screens (Run 3 and Run 4, Claude in Chrome)
+
+Logged in as the owner (the owner typed the password; Claude never types passwords into a live site).
+
+| Step | Result |
+|---|---|
+| Golden tests → **Run all approved pairs (10)** | Run 3 page opens; rows fill in pair by pair, progress bar moves, "running N of 10…" |
+| Run 3 finished | **18 of 20 passed, 2 fail, 0 can't test**; 14 manual checks show **Looks right / Looks wrong** |
+| 3 key points | 2 points (both #6, phone + laptop): "only the Black colour shows a price…" |
+| Answer a manual check (#2 phone, verified first: the Solaris result links to `/products/solaris`, 200) | "Thanks — saved."; row shows 4 of 4 checks passed |
+| Tick #6 and #8, type an "Other changes" note, **Turn into a check** | 1st proposal opened `/products/solaris-black` (does not exist), so it was **Discarded**; reworded note → proposal `GET /products/solaris` with Black / Sand / Rust Red / Add to cart checks → **Approve and include** (pair #11) |
+| **Re-run changed** | Run 4: 3 pairs, 6 rows, **4 of 6 passed**. "Good now?" #6 **No** (nothing on the real site changed), #8 **Yes**, #11 **Yes** |
+| Compare Run 4 with Run 3 | 0 fixed · 0 broke · 6 same (#11 "Not tested" in Run 3) |
+| Run 1 rows after Runs 2–4 | unchanged (results are insert-only) |
+
+The automatic compare at the end of Run 4 once showed "We couldn't reach the server" (the request never
+reached the server); pressing Compare worked. It now retries once on a dropped connection.
+
+## Redesign + phone and laptop check (M6b)
+
+Every screen checked live at 1224px (laptop) and inside a 390px frame (phone; Chrome's window can't be
+resized here): login, My projects, New project modal, Golden tests, Results (running and finished),
+"Good now?" panel, Compare. Found and fixed on phones: nav crumbs cut off, tap targets under 44px
+(nav pills, site chip, "More", banner link), a 130px sticky run bar (now 72px), "How to read this" filling
+the first screen (now closed by default on phones), a lone nav pill cut off. After the fixes: no sideways
+scroll on any screen (page width 375 = viewport), every button / link ≥ 44px tall (tick boxes sit in
+44–75px tall labels).
+
+## Secrets check (19 Oct 2026)
+
+- Tracked files and the whole git history (all branches): 0 matches for `gsk_`, `sb_secret_`,
+  `service_role`, `eyJhbGciOi` (JWT keys) or the owner's password.
+- Live site: every page, script and stylesheet the browser can load has 0 matches for keys or the Supabase
+  address; `/.env`, `/.env.local`, `/.vercel/project.json`, `/api/_lib/groq.py` → 404.
+- The API without a login answers `{"detail":"Please log in."}` and never echoes settings.
+- The Groq key and Supabase keys live only in Vercel's environment variables (encrypted). No `.env` file on
+  disk; no copy of the key or password in project files, scratch files or shell history.
