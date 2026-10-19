@@ -57,7 +57,7 @@ for (const [device, viewport] of [["laptop", { width: 1280, height: 800 }], ["ph
 // 4. Sign up a brand-new test account (laptop, then the same flow on a phone with another account).
 for (const [device, viewport] of [["laptop", { width: 1280, height: 800 }], ["phone", { width: 390, height: 844 }]]) {
   const ctx = await browser.newContext({ viewport, isMobile: device === "phone", hasTouch: device === "phone" });
-  const page = await ctx.newPage();
+  let page = await ctx.newPage();
   const email = `landing.test+${Date.now()}${device}@example.com`;
   const password = crypto.randomBytes(18).toString("base64url");
   await page.goto(BASE + "/signup", { waitUntil: "networkidle" });
@@ -66,7 +66,13 @@ for (const [device, viewport] of [["laptop", { width: 1280, height: 800 }], ["ph
   await page.locator('form button[type="submit"]').first().click();
   await page.waitForURL((u) => !u.pathname.startsWith("/signup"), { timeout: 20000 }).catch(() => {});
   await page.waitForLoadState("networkidle");
-  check(`${device}: after sign up → landing page`, path(page) === "/", path(page));
+  check(`${device}: after sign up → dashboard`, path(page).startsWith("/home.html"), path(page));
+  // The login is remembered in this browser: a fresh tab on "/" shows Dashboard, and /login goes to the dashboard.
+  await page.close();
+  page = await ctx.newPage();
+  await page.goto(BASE + "/login", { waitUntil: "networkidle" });
+  check(`${device}: logged in, /login → dashboard`, path(page).startsWith("/home.html"), path(page));
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
   check(`${device}: logged in shows Dashboard`, await visible(page, "Dashboard"));
   check(`${device}: logged in hides Log in / Sign up`, !(await visible(page, "Log in")) && !(await visible(page, "Sign up")));
   await page.screenshot({ path: `shots/landing-${device}-loggedin.png` });
@@ -107,6 +113,17 @@ for (const [device, viewport] of [["laptop", { width: 1280, height: 800 }], ["ph
   await page.waitForLoadState("networkidle");
   check(`${device}: log out → landing`, path(page) === "/", path(page));
   check(`${device}: logged out again shows Log in + Sign up`, (await visible(page, "Log in")) && (await visible(page, "Sign up")));
+
+  // Log in from /login → dashboard.
+  await page.goto(BASE + "/login", { waitUntil: "networkidle" });
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
+  await page.locator('form button[type="submit"]').first().click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20000 }).catch(() => {});
+  check(`${device}: log in → dashboard`, path(page).startsWith("/home.html"), path(page));
+  await page.locator("#account-menu summary, #account-menu button, .avatar").first().click().catch(() => {});
+  await page.locator("#menu-logout").click();
+  await page.waitForLoadState("networkidle");
 
   // Log back in through /login?next= → returns to the page you asked for.
   await page.goto(BASE + "/home.html", { waitUntil: "networkidle" });

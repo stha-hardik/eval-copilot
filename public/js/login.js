@@ -1,7 +1,7 @@
 // Log in / sign up screen. One page, two routes: /login and /signup (or ?mode=signup).
 (function () {
-  // Someone who is already logged in has nothing to do here: back to the landing page.
-  if (EC.getSession()) { location.replace("/"); return; }
+  // Someone who is already logged in has nothing to do here: straight to their dashboard.
+  if (EC.getSession()) { location.replace("/home.html"); return; }
 
   var mode = "login";
   var form = document.getElementById("auth-form");
@@ -110,7 +110,7 @@
 
   function nextUrl() {
     var n = EC.param("next");
-    return n && n.charAt(0) === "/" && n.charAt(1) !== "/" && n.charAt(1) !== "\\" ? n : "/";
+    return n && n.charAt(0) === "/" && n.charAt(1) !== "/" && n.charAt(1) !== "\\" ? n : "/home.html";
   }
 
   window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });

@@ -160,7 +160,7 @@ AI), **Real browser**, **You check**. Changes:
   → phone fail "The cart showed 2 lamps after one tap"; open cart → laptop can't test, robot check), a "3 things to
   fix first" preview, How it works in 4 steps, a Run 1 vs Run 2 example and "Ready to test yours?". Every number on
   it sits inside a labelled example; no fake stats, no dead links, no fake URL box.
-- **Routing:** log in / sign up moved to `/login` and `/signup`. After either you land on `/`. Logged out the top
+- **Routing:** log in / sign up moved to `/login` and `/signup`. After either you go to your projects (dashboard); the login is remembered, so the landing page then shows Dashboard. Logged out the top
   right shows Log in + Sign up and "Test yours" opens sign up; logged in it shows Dashboard and "Test yours" opens
   your projects. Opening a protected page logged out goes to `/login?next=…` and back there after logging in (only
   same-site paths are accepted).

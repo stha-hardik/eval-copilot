@@ -25,7 +25,7 @@ Live app: https://eval-copilot.vercel.app
   examples), a "3 things to fix first" preview, how it works in 4 steps, and **Test yours**. Logged out, the top
   right shows **Log in** and **Sign up** and "Test yours" opens sign up; logged in, it shows **Dashboard** and
   "Test yours" opens your projects. The page is static: it only looks in the browser to see if you're logged in.
-- **`/login`** and **`/signup`** are the log in and sign up screen. After either you land on the landing page.
+- **`/login`** and **`/signup`** are the log in and sign up screen. After either you go straight to your projects (the dashboard). The login is remembered in that browser, so coming back to the landing page later shows **Dashboard** instead of Log in / Sign up.
   Opening a page that needs a login (for example your projects) while logged out sends you to `/login`, and
   after logging in you go straight back to that page.
 - **Light and dark theme.** It follows your device at first. Switch it any time from the avatar menu at the top
