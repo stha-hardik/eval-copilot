@@ -36,3 +36,33 @@ for (const [name, device, start, steps, wantShot, wantCart] of cases) {
   await ctx.close();
 }
 await browser.close();
+
+// Diagnostic: what does "Check out" on bublsolar.com really open?
+{
+  const b = await puppeteer.launch({ args: ["--no-sandbox"] });
+  const page = await b.newPage();
+  await page.setViewport({ width: 1440, height: 900 });
+  const hosts = new Set();
+  page.on("request", (r) => { try { hosts.add(new URL(r.url()).hostname); } catch (e) {} });
+  await page.goto("https://bublsolar.com/products/solaris", { waitUntil: "domcontentloaded" });
+  await new Promise((r) => setTimeout(r, 2500));
+  await page.evaluate(() => document.querySelector("button[name=add]").click());
+  await new Promise((r) => setTimeout(r, 2500));
+  await page.goto("https://bublsolar.com/cart", { waitUntil: "domcontentloaded" });
+  await new Promise((r) => setTimeout(r, 2500));
+  const before = new Set(hosts);
+  const btn = await page.$("button[name=checkout]");
+  console.log("checkout button html:", await btn.evaluate((e) => e.outerHTML.slice(0, 300)));
+  await btn.click();
+  await new Promise((r) => setTimeout(r, 7000));
+  console.log("DIAG url after click:", page.url());
+  console.log("DIAG new hosts:", [...hosts].filter((h) => !before.has(h)).join(", "));
+  console.log("DIAG iframes:", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("iframe")].map((f) => {
+    const r = f.getBoundingClientRect(); return [f.src.slice(0, 90), f.id, Math.round(r.width), Math.round(r.height)]; }).filter((x) => x[2] > 50))));
+  console.log("DIAG big fixed:", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("body *")].filter((el) => {
+    const s = getComputedStyle(el); const r = el.getBoundingClientRect();
+    return s.position === "fixed" && s.display !== "none" && r.width * r.height > innerWidth * innerHeight * 0.3; })
+    .map((el) => `${el.tagName}#${el.id}.${String(el.className).slice(0, 60)}`).slice(0, 8))));
+  await page.screenshot({ path: "shots/diag-after-checkout.jpg", type: "jpeg", quality: 55 });
+  await b.close();
+}
