@@ -184,11 +184,15 @@ two brand-new throwaway accounts (random passwords, never written down):**
 | Logged out `/`: headline, **Log in** + **Sign up**, no Dashboard, no sideways scroll, no script errors | pass ×4 |
 | **Test yours** → `/signup`, which links to log in | pass |
 | `/home.html` logged out → `/login?next=%2Fhome.html` | pass |
-| Sign up → lands on `/` with **Dashboard** (Log in / Sign up gone) | pass |
+| Sign up → straight to the dashboard (projects); a new tab on `/` then shows **Dashboard** (Log in / Sign up gone); `/login` while logged in → dashboard | pass |
 | Logged in **Test yours** → projects; **Dashboard** → projects | pass |
 | Avatar menu: **Dark theme** switch between "Signed in as" and "Log out"; switches light → dark; kept after reload | pass |
 | **Log out** → `/` with Log in + Sign up again | pass |
+| Log in from `/login` → dashboard | pass |
 | Log in from a protected page → straight back to it | pass |
 
 46 of 48 passed on the first run; the 2 misses were the test itself (it looked for "Signed in as", which the menu
 shows in capitals). The screenshots show the switch in the right place; the test now ignores capitals.
+
+After the change "after log in or sign up, go to the dashboard" (deploy of `f123380`), the same live test with the
+new checks: **52 of 52 passed**.
