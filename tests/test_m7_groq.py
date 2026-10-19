@@ -282,3 +282,36 @@ def test_confident_given_as_text_or_zero_is_not_trusted(value):
     with post(one(), one()):
         out = groq.judge_screenshot(SHOT, PAIR, checks("a"), "phone")
     assert out["a"]["passed"] is None and out["a"]["confident"] is False
+
+
+# ---------------------------------------------------------------- before + after pictures
+
+def _parts(call):
+    msg = call.kwargs["json"]["messages"]
+    return msg[0]["content"], msg[1]["content"]
+
+
+def test_before_and_after_go_in_one_message_before_first():
+    with post(reply([answer("a")])) as p:
+        out = groq.judge_screenshot("AFTER", PAIR, checks("a"), "phone", before_b64="BEFORE", clicked="Turn On")
+    system, parts = _parts(p.call_args)
+    assert [x["type"] for x in parts] == ["text", "image_url", "image_url"]
+    assert parts[1]["image_url"]["url"].endswith("BEFORE") and parts[2]["image_url"]["url"].endswith("AFTER")
+    assert 'clicked "Turn On"' in system and "TWO screenshots" in system
+    assert out["a"]["confident"] is True
+
+
+def test_no_before_shot_sends_one_image_and_old_wording():
+    with post(reply([answer("a")])) as p:
+        groq.judge_screenshot("AFTER", PAIR, checks("a"), "phone", clicked="Turn On")
+    system, parts = _parts(p.call_args)
+    assert len(parts) == 2 and "TWO screenshots" not in system
+
+
+def test_before_and_after_too_big_together_sends_only_after():
+    half = "A" * (groq.VISION_MAX_B64 // 2 + 1)
+    with post(reply([answer("a")])) as p:
+        out = groq.judge_screenshot(half, PAIR, checks("a"), "phone", before_b64=half, clicked="Turn On")
+    system, parts = _parts(p.call_args)
+    assert len(parts) == 2 and parts[1]["image_url"]["url"].endswith(half) and "TWO screenshots" not in system
+    assert out["a"]["confident"] is True

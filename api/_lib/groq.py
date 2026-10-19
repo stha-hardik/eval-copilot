@@ -427,14 +427,26 @@ Shape:
 {{"results": [{{"id": "<id from the input>", "passed": true or false, "why": "one line", "confident": true or false}}]}}"""
 
 
-def _vision_call(key: str, shot_b64: str, text: str, timeout: float) -> dict:
+VISION_BEFORE_AFTER = """
+You get TWO screenshots. Image 1 was taken just before the shopper clicked "{clicked}" and image 2 just after. Judge every
+check about the AFTER state (image 2). Use image 1 only to see what changed (for example a lamp that was off is now
+glowing, or a menu that was closed is now open)."""
+
+
+def _vision_call(key: str, shot_b64: str, text: str, timeout: float, before_b64: str | None = None,
+                 clicked: str | None = None) -> dict:
+    system = VISION_SYSTEM
+    images = [shot_b64]
+    if before_b64:
+        system += VISION_BEFORE_AFTER.format(clicked=(clicked or "the button").replace('"', "'")[:60])
+        images = [before_b64, shot_b64]
     payload = {
         "model": VISION_MODEL,
         "messages": [
-            {"role": "system", "content": VISION_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": [
                 {"type": "text", "text": text},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{shot_b64}"}},
+                *[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}} for img in images],
             ]},
         ],
         "response_format": {"type": "json_object"},
@@ -445,8 +457,11 @@ def _vision_call(key: str, shot_b64: str, text: str, timeout: float) -> dict:
 
 
 def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
-                     timeout: float = TIMEOUT_SECONDS) -> dict:
-    """G6: `{check_id: {"passed", "why", "confident"}}` for ai_vision checks, from one screenshot.
+                     timeout: float = TIMEOUT_SECONDS, before_b64: str | None = None,
+                     clicked: str | None = None) -> dict:
+    """G6: `{check_id: {"passed", "why", "confident"}}` for ai_vision checks, from the screenshot after the steps.
+
+    With a `before_b64` (just before the last click) both go in one message, if they fit together.
 
     Asks twice for checks the AI isn't confident about; still unsure (or no answer) -> passed None, confident False.
     """
@@ -455,6 +470,8 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not checks or not shot_b64 or not key or len(shot_b64) > VISION_MAX_B64:
         return out
+    if before_b64 and len(before_b64) + len(shot_b64) > VISION_MAX_B64:
+        before_b64 = None  # too big together: just the after picture
     deadline = time.monotonic() + timeout
     todo = list(checks)
     for _ in range(2):
@@ -465,7 +482,7 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
                           golden_pair={"user_does": pair.get("user_does", ""), "good_result": pair.get("good_result", "")},
                           checks=[{"id": str(c["id"]), "question": c.get("expected")} for c in todo])
         try:
-            data = _vision_call(key, shot_b64, text, min(left, TIMEOUT_SECONDS))
+            data = _vision_call(key, shot_b64, text, min(left, TIMEOUT_SECONDS), before_b64, clicked)
         except _RateLimited as limited:
             pause = min(limited.wait, deadline - time.monotonic() - 4)
             if pause > 0:

@@ -102,9 +102,9 @@ class FakeVision:
         self.answer = lambda device, checks: {c["id"]: dict(VISION_OK) for c in checks}
         self.lock = threading.Lock()
 
-    def judge_screenshot(self, shot_b64, pair, checks, device, timeout=25):
+    def judge_screenshot(self, shot_b64, pair, checks, device, timeout=25, before_b64=None, clicked=None):
         with self.lock:
-            self.calls.append(SimpleNamespace(shot=shot_b64, pair_id=pair["id"], ids=[c["id"] for c in checks],
+            self.calls.append(SimpleNamespace(shot=shot_b64, before=before_b64, clicked=clicked, pair_id=pair["id"], ids=[c["id"] for c in checks],
                                               questions=[c["expected"] for c in checks], device=device,
                                               timeout=timeout))
         if not shot_b64:  # like the real judge: no picture, no verdict
@@ -1114,3 +1114,20 @@ def test_each_browser_session_writes_one_plain_log_line_without_the_token(m7, pi
     assert lines[0].startswith("[browser] pair #") and " phone: worked · browser opened yes" in lines[0]
     assert " laptop: worked" in lines[1] and "cart 1 item(s)" in lines[1] and "screenshot yes" in lines[1]
     assert all("tok-secret" not in l and "SHOT-" not in l for l in lines)
+
+
+def test_door_passes_the_before_shot_and_clicked_label_to_the_judge(m7, pid):
+    mk(m7, pid, "Look", "/products/solaris", [C("ai_vision", "Is it lit?", STEPS)])
+    m7.fb.make = lambda call: browser.Session(device=call.device, status_code=200, url="u", text="t",
+                                              shot="AFTER", shot_before="BEFORE", clicked="Turn On")
+    drive(m7.api, pid)
+    assert all((c.shot, c.before, c.clicked) == ("AFTER", "BEFORE", "Turn On") for c in m7.fv.calls) and m7.fv.calls
+
+
+def test_log_line_says_before_and_after_when_both_exist(m7, pid, capsys):
+    mk(m7, pid, "Look", "/products/solaris", [C("ai_vision", "Is it lit?", STEPS)])
+    m7.fb.make = lambda call: browser.Session(device=call.device, status_code=200, url="u", text="t", ran=True,
+                                              shot="AFTER", shot_before="BEFORE", clicked="Turn On")
+    drive(m7.api, pid)
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("[browser]")]
+    assert lines and all("screenshots before+after" in l and "BEFORE" not in l and "AFTER" not in l for l in lines)

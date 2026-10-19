@@ -533,7 +533,8 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, session
         decided.setdefault(c["id"], {"passed": None, "why": groq.AI_UNSURE})
     if vision_checks:
         seen = groq.judge_screenshot(session.shot or "", pair, vision_checks, session.device,
-                                     timeout=max(0, min(left(), 40)))
+                                     timeout=max(0, min(left(), 40)),
+                                     before_b64=session.shot_before, clicked=session.clicked)
         for c in vision_checks:
             v = seen.get(c["id"]) or {}
             if v.get("confident") and isinstance(v.get("passed"), bool):
@@ -623,7 +624,8 @@ def _log_session(pair: dict, device: str, s: "browser.Session", secs: float) -> 
         extra.append(f"status {s.status_code}")
         if s.cart is not None:
             extra.append(f"cart {s.cart.get('item_count')} item(s)")
-        extra.append("screenshot yes" if s.shot else "screenshot no")
+        extra.append("screenshots before+after" if s.shot and s.shot_before
+                     else "screenshot yes" if s.shot else "screenshot no")
         if s.notes:
             extra.append("notes: " + ", ".join(s.notes[:4]))
         if s.error:

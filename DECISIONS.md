@@ -159,3 +159,11 @@
     a screenshot); Groq had retired `meta-llama/llama-4-scout-17b-16e-instruct` and answered 404, which the code
     swallowed. Qwen 3.8 27B is the only Groq model that currently reads images; it answered a test screenshot
     correctly in under a second. Vision failures now write a `[vision] … failed` line to the logs.
+45. **Before / after screenshots for click checks (20 Oct 2026).** A single after-click screenshot missed things: on
+    #7 laptop the click scrolled the "Turn On" button to the middle of the screen and cut the glowing lamp head off,
+    so the AI was rightly unsure. Now, when a check clicks something, the real browser takes one screenshot just
+    before the last click and one after, both framed the same way: it scrolls so the whole photo / block around the
+    clicked button sits just below the site's sticky header. Groq gets both images in one question ("image 1 just
+    before the shopper clicked X, image 2 just after") and judges the after state. If both images together are too
+    big, it gets the after image only. Screenshots are still never stored. Tested live: #7 laptop and phone, and #1
+    phone, went from "not sure" to a confident pass.

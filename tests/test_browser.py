@@ -577,3 +577,19 @@ def test_forbidden_pattern_is_the_same_in_javascript():
     out = subprocess.run(["node", "-e", script, browser.FORBIDDEN, json.dumps(labels)],
                          capture_output=True, text=True, timeout=30, check=True).stdout
     assert json.loads(out) == [True, True, True, True, True, False, False, False]
+
+
+def test_before_shot_and_clicked_label_are_parsed(net):
+    net.queue = [resp(data={**OK_DATA, "shot": "QUJD", "shotBefore": "REVG", "clicked": "Turn On"})]
+    s = go("phone", want_shot=True)
+    assert s.shot == "QUJD" and s.shot_before == "REVG" and s.clicked == "Turn On"
+
+
+def test_before_shot_must_be_text_and_clicked_needs_it(net):
+    net.queue = [resp(data={**OK_DATA, "shot": "QUJD", "shotBefore": 5, "clicked": "Turn On"})]
+    s = go()
+    assert s.shot_before is None and s.clicked is None
+
+
+def test_no_before_shot_by_default():
+    assert browser.Session(device="phone").shot_before is None and browser.Session(device="phone").clicked is None

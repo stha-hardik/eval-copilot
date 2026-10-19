@@ -4,7 +4,7 @@
 export default async function ({ page, context }) {
   const c = context;
   const started = Date.now();
-  const out = { status: null, url: null, title: "", text: "", html: "", cart: null, shot: null,
+  const out = { status: null, url: null, title: "", text: "", html: "", cart: null, shot: null, shotBefore: null, clicked: null,
                 human_reason: null, error: null, out_of_time: false, notes: [] };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const forbidden = new RegExp(c.forbidden, "i");
@@ -78,9 +78,46 @@ export default async function ({ page, context }) {
     return handle.asElement();
   };
 
+  // Frame the picture for a clicked element: scroll so the nearest block around it that holds an image/video (and
+  // fits the screen) starts just under any sticky header, keeping the element itself in view. Returns where it ended up.
+  const frame = (el) => el.evaluate((e) => {
+    const vh = innerHeight;
+    const abs = (n) => { const r = n.getBoundingClientRect(); return { top: r.top + scrollY, bottom: r.bottom + scrollY, h: r.height }; };
+    let head = 0;
+    for (const n of document.querySelectorAll("header, nav, [class*=header i], [id*=header i], [class*=sticky i]")) {
+      const s = getComputedStyle(n); const r = n.getBoundingClientRect();
+      if ((s.position === "fixed" || s.position === "sticky") && r.top <= 4 && r.bottom > 0 && r.width > innerWidth * 0.5 && r.height < vh * 0.3) head = Math.max(head, r.bottom);
+    }
+    head = head > 0 ? head + 8 : 100;
+    const hasMedia = (n) => [...n.querySelectorAll("img, picture, video, canvas")].some((m) => { const r = m.getBoundingClientRect(); return r.width > 60 && r.height > 60; });
+    let ctx = e;
+    for (let n = e.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (hasMedia(n)) { if (abs(n).h <= vh - head) ctx = n; break; }
+    }
+    const el = abs(e), box = abs(ctx);
+    let y = box.top - head;
+    y = Math.min(y, el.top - head);          // the element stays below the header
+    y = Math.max(y, el.bottom - vh + 12);    // and above the bottom edge
+    y = Math.max(0, Math.min(y, document.documentElement.scrollHeight - vh));
+    window.scrollTo({ top: y, behavior: "instant" });
+    e.setAttribute("data-ec-target", "1");
+    return { y: scrollY, top: el.top };
+  });
+  // Frame it again for the after picture: same scroll as before unless the element moved (or the page changed).
+  const reframe = async (before, urlBefore) => {
+    const found = await page.$("[data-ec-target]");
+    if (!found) { if (page.url() === urlBefore) await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), before.y); return; }
+    const now = await found.evaluate((e) => e.getBoundingClientRect().top + scrollY);
+    if (Math.abs(now - before.top) > 20) await frame(found);
+    else await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), before.y);
+  };
+
   const steps = c.steps.length && c.steps[0].goto !== undefined ? c.steps : [{ goto: c.start }, ...c.steps];
+  let lastClick = -1;  // the click being judged: a "before" picture is taken just ahead of it
+  steps.forEach((st, i) => { if (st.click) lastClick = i; });
+  let framed = null, urlBefore = null;
   try {
-    for (const step of steps) {
+    for (const [i, step] of steps.entries()) {
       if (Date.now() - started > c.budgetMs) { out.out_of_time = true; break; }
       if (step.goto !== undefined) {
         const resp = await page.goto(c.base + step.goto, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -99,7 +136,16 @@ export default async function ({ page, context }) {
         }
         const name = await el.evaluate((e) => (e.innerText || e.value || e.getAttribute("aria-label") || "").trim());
         if (forbidden.test(name)) { out.human_reason = `forbidden:${name.slice(0, 40)}`; break; }
-        await el.evaluate((e) => e.scrollIntoView({ block: "center" }));
+        if (i === lastClick && c.wantShot && Date.now() - started < c.budgetMs - 10000) {
+          framed = await frame(el);
+          urlBefore = page.url();
+          if (await guard()) { out.human_reason = await guard(); break; }
+          await sleep(400);  // lazy images
+          out.shotBefore = await page.screenshot({ type: "jpeg", quality: 55, encoding: "base64" });
+          out.clicked = label.slice(0, 80);
+        } else {
+          await el.evaluate((e) => e.scrollIntoView({ block: "center" }));
+        }
         // If the click opens a new page (e.g. "Check out"), wait for it to load before the guard looks.
         let navigating = false;
         const onRequest = (r) => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) navigating = true; };
@@ -132,6 +178,12 @@ export default async function ({ page, context }) {
       }
       if (c.wantShot) {
         if (await closePopups()) out.notes.push("closed a pop-up");
+        if (framed) {
+          await reframe(framed, urlBefore);
+          const where = await guard();
+          if (where) { out.human_reason = where; out.shotBefore = null; out.clicked = null; return { data: out, type: "application/json" }; }
+          await sleep(400);
+        }
         await sleep(300);
         out.shot = await page.screenshot({ type: "jpeg", quality: 55, encoding: "base64" });
       }

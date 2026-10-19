@@ -74,6 +74,8 @@ class Session:
     html: str = ""
     cart: dict | None = None
     shot: str | None = None  # base64 JPEG, kept in memory only for the vision judge, never stored
+    shot_before: str | None = None  # same, taken just before the last click
+    clicked: str | None = None  # label of that last click
     notes: list[str] = field(default_factory=list)
     human_reason: str | None = None
     error: str | None = None
@@ -211,6 +213,8 @@ def run(site_url: str, start_path: str, steps: list[dict] | None, device: str, w
     s.html = str(data.get("html") or "")
     s.cart = data.get("cart") if isinstance(data.get("cart"), dict) else None
     s.shot = data.get("shot") if isinstance(data.get("shot"), str) else None
+    s.shot_before = data.get("shotBefore") if isinstance(data.get("shotBefore"), str) else None
+    s.clicked = str(data["clicked"])[:80] if isinstance(data.get("clicked"), str) and s.shot_before else None
     s.notes = [str(n) for n in data.get("notes") or []][:10]
     reason = data.get("human_reason")
     if reason:
