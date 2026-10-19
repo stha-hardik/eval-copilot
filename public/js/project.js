@@ -710,6 +710,7 @@
         const r = await EC.api("POST", "/api/projects/" + encodeURIComponent(projectId) + "/runs", { kind: "full" });
         const id = r && r.run && r.run.id;
         if (!id) throw new Error("We couldn't start the run. Please try again.");
+        try { sessionStorage.setItem("ec.run." + id + ".pairs", JSON.stringify(r.pair_ids || [])); } catch (e) {}
         btn.disabled = true;
         location.href = "/run.html?id=" + encodeURIComponent(id) + "&start=1";
         await new Promise(() => {}); // stay greyed out while the browser navigates
