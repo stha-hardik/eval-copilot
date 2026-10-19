@@ -196,3 +196,7 @@ shows in capitals). The screenshots show the switch in the right place; the test
 
 After the change "after log in or sign up, go to the dashboard" (deploy of `f123380`), the same live test with the
 new checks: **52 of 52 passed**.
+
+**Browser log lines:** every real-browser session writes one line to Vercel's runtime logs, searchable as `[browser]`:
+`[browser] pair #8 phone: worked · browser opened yes · 9.4s · status 200 · cart 1 item(s) · screenshot yes`, or
+`handed to a person: <reason>`. Never the token, page text or screenshots (test in `tests/test_m7_api.py`).
