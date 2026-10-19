@@ -105,7 +105,7 @@ order · 10 show which tests used the real browser.
 **API changes (no new doors):** check rules `browser_count` and `ai_vision` with `steps` (doors 4, 5, 6, 7); door 9 routes
 fetch → browser → person and returns `via` and `human_reason` per row; result checks carry `steps`; `/api/health` says
 whether a browser key exists (`browser: true/false`, never the key). Database: migration `m7_real_browser`
-(`checks.steps`, `results.via`, new rules). New AI job: Groq vision (`meta-llama/llama-4-scout-17b-16e-instruct`)
+(`checks.steps`, `results.via`, new rules). New AI job: Groq vision (`qwen/qwen3.8-27b`; first built on Llama 4 Scout, which Groq has since retired)
 returns `{passed, why, confident}`.
 
 **Bubl Solar now:** no `manual` checks left. #1 menu, #6 colour, #7 Turn On, #10 order summary → AI looks at a
@@ -175,8 +175,8 @@ AI), **Real browser**, **You check**. Changes:
 
 - **Supabase:** talked to with plain requests as the logged-in user, so the privacy rules always apply. No
   admin key. Two advisor fixes: locked a Supabase helper, and added 3 indexes.
-- **Speed:** one AI call per pair per device (phone and laptop in parallel), with a 50-second budget per
-  pair, to stay under Vercel's 60-second limit.
+- **Speed:** one AI call per pair per device. Door 9 has a 140-second budget per pair (Vercel allows this
+  function 150 s); pairs that use the real browser take about 45–80 s, plain page reads about 6 s.
 - **Outcome rules:** a block (403 / 429 / challenge page) means "can't test", never fail. A page that
   doesn't load is a fail. All-human or AI-unsure rows are "can't test" until you answer.
 - **Locked checks:** checks lock once a pair has run, because old results point at them. To change them,

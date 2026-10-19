@@ -215,3 +215,8 @@ new checks: **52 of 52 passed**.
   #1 laptop "categories, search and cart visible". #1 phone and #7 laptop: the AI wasn't confident (asked twice)
   → "You check" with that reason (no `[vision] failed` lines, so not an error). #10: "Payment page, a person needs
   to check this" on both, on purpose.
+
+## Runs 9–12, before/after screenshots and the audit (20 Oct 2026)
+
+See `AUDIT.md` sections 3–5: two-user security test 93/93, functional and error-state tests, Runs 9–12 (final Run 12:
+22 rows, 20 pass, 2 fail on #6, 0 can't test) and the demo AI app test (planted flaw caught, fixed, 4 FIXED).
