@@ -60,15 +60,15 @@
       case "text_absent": return "Doesn’t show “" + x + "”";
       case "count_equals": return "Count is right: " + x;
       case "min_results": return "At least " + x + " " + plural(Number(x), "result", "results");
-      case "ai_judge": return x || "The AI judges the page";
+      case "ai_judge": return x || "The AI answers a question about the page";
       case "browser_count": return "Count after real clicks: " + x;
-      case "ai_vision": return "AI looks at the screen: " + x;
-      case "manual": return "You look: " + x;
+      case "ai_vision": return "AI looks at a screenshot: " + x;
+      case "manual": return "You check: " + x;
       default: return x || c.rule || "Check";
     }
   }
   function isPending(c) { return c.passed === null || c.passed === undefined; }
-  // Every check still waiting for a person: old "you look" checks and browser checks handed over at run time.
+  // Every check still waiting for a person: old "you check" checks and checks handed over at run time.
   function pendingChecks(row) {
     return (row.checks || []).filter(isPending);
   }
@@ -88,7 +88,7 @@
   function whyText(r) {
     const why = r.why || "";
     if (r.outcome === "cant_test" && /blocked/i.test(why)) return "The site blocked us, so we can’t test this.";
-    if (!why && pendingChecks(r).length) return "Waiting for you to look at the site.";
+    if (!why && pendingChecks(r).length) return "Waiting for your answer.";
     return why;
   }
 
@@ -264,7 +264,7 @@
     const site = S.project.site_url;
     setHtml("manual-banner",
       '<div class="banner banner-info" role="status"><span class="banner-icon">' + ic("eye") + "</span>" +
-      '<div class="banner-body">' + n + " " + plural(n, "check needs", "checks need") + " your eyes. Open the site on your phone and laptop, then answer " + plural(n, "it", "them") + " below." +
+      '<div class="banner-body">' + n + " " + plural(n, "check needs", "checks need") + " your eyes. We couldn\u2019t finish " + plural(n, "it", "them") + " ourselves, and the reason is on the card. Open the site on your phone and laptop, then answer below." +
       (site ? ' <a href="' + e(site) + '" target="_blank" rel="noopener">Open ' + e(hostOf(site)) + "</a>" : "") + "</div></div>");
   }
 
@@ -273,7 +273,7 @@
     const pending = isPending(c);
     let res = "";
     if (r) {
-      if (pending) res = '<span class="pill pill-human">Needs a look</span>';
+      if (pending) res = '<span class="pill pill-human">Waiting for you</span>';
       else if (c.passed) res = '<span class="pill pill-pass">Pass</span>';
       else res = '<span class="pill pill-fail">Fail</span>';
     }
@@ -287,7 +287,7 @@
   }
 
   function deviceChip(d) { return '<span class="chip chip-sm">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>"; }
-  // "Real browser" when we clicked through the page; "You check" when a person has to look.
+  // "Real browser" when we clicked through the page; "You check" when we handed it to a person.
   function viaBadge(r) {
     if (!r) return "";
     if (handedOver(r)) return EC.ui.checkTag("human", "via-badge");
@@ -311,7 +311,7 @@
     const pend = pendingChecks(r);
     if (pend.length) {
       return pend.map((c) =>
-        '<div class="rc-q"><span class="label-caps">Question</span><p>' + e(questionText(c)) + "</p>" +
+        '<div class="rc-q"><span class="label-caps">Your check</span><p>' + e(questionText(c)) + "</p>" +
         (c.id != null
           ? '<div class="manual-actions">' +
             '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="true">' + ic("check") + "Looks right</button>" +
@@ -334,7 +334,7 @@
     const isOpen = S.detailsOpen[r.result_id] !== undefined ? S.detailsOpen[r.result_id] : false;
     return '<div class="rc-checks"><details class="disclosure disclosure-inline checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
       '<summary><span class="disclosure-title">Checks (' + r.checks.length + ")</span>" +
-      (pend ? ' <span class="pill pill-human">' + pend + " to look at</span>" : "") +
+      (pend ? ' <span class="pill pill-human">' + pend + " waiting for you</span>" : "") +
       '<i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i></summary>' +
       '<div class="disclosure-body"><ul class="check-list">' + r.checks.map((c) => checkLi(c, r)).join("") + "</ul></div></details></div>";
   }
@@ -366,7 +366,7 @@
             "<span>" + (open ? "Less" : "More") + '</span><i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i></button>'
         : '<div class="rc-showed"><span class="rc-showed-label">The site showed:</span> nothing came back.</div>') +
         (handedReason(r)
-          ? '<div class="banner banner-info rc-handed" role="note"><span class="banner-icon">' + ic("info") + '</span><div class="banner-body"><span>' + e(handedReason(r)) + "</span></div></div>"
+          ? '<div class="banner banner-info rc-handed" role="note"><span class="banner-icon">' + ic("info") + '</span><div class="banner-body"><span><strong>Why we asked you:</strong> ' + e(handedReason(r)) + "</span></div></div>"
           : "") +
         (r.status_code != null ? '<div class="status-code">Status ' + e(r.status_code) + "</div>" : "") + "</div>";
       return cardHtml(item, d, {
@@ -594,7 +594,7 @@
   }
   function notFound() {
     showFatal('<div class="empty">' + ic("search-x") + '<p class="empty-title">We couldn’t find this run.</p>' +
-      '<p>It may have been removed, or the link is not quite right.</p><a class="btn btn-secondary" href="/home.html">Go to my sites</a></div>');
+      '<p>It may have been removed, or the link is not quite right.</p><a class="btn btn-secondary" href="/home.html">Go to My projects</a></div>');
   }
   function loadError(msg) {
     showFatal('<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>" + e(msg) + '</div><button type="button" class="btn btn-secondary btn-sm" data-action="reload">Try again</button></div>');

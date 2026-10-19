@@ -45,10 +45,14 @@
             <div><dt>#</dt><dd>The pair's number.</dd></div>
             <div><dt>What the user does</dt><dd>The thing a visitor tries on your site.</dd></div>
             <div><dt>Device</dt><dd>We test as a phone and as a laptop.</dd></div>
-            <div><dt>Result</dt><dd>Pass, Fail or Can't test. We can't test when the site blocks us or a check needs your eyes.</dd></div>
-            <div><dt>Real browser</dt><dd>We clicked through the page in a real browser (only when a plain page read couldn't answer).</dd></div>
+            <div><dt>How we check</dt><dd>We use the simplest way for each test, and open a real browser only when a test needs a click or a look. Each check is tagged with how it was done:</dd></div>
+            <div><dt>Code</dt><dd>Reading the page. The code reads its text and decides: does it open, show or hide certain words, how many results.</dd></div>
+            <div><dt>AI</dt><dd>Reading the page. The AI answers a yes/no question about the page text.</dd></div>
+            <div><dt>Real browser</dt><dd>Only when a test needs a click or a look. We click through the page like a shopper (never paying or logging in). Then the code counts the cart, or the AI looks at a screenshot. The steps are listed under the check.</dd></div>
+            <div><dt>You check</dt><dd>The last resort, always with a reason: a payment, login or "are you a robot?" page, the AI wasn't sure, or the real browser wasn't available. Answer with Looks right or Looks wrong.</dd></div>
+            <div><dt>Result</dt><dd>Pass, Fail or Can't test. Can't test means the site blocked us, or the check still waits for your answer.</dd></div>
             <div><dt>What the site showed</dt><dd>A short piece of what the site sent back.</dd></div>
-            <div><dt>Why</dt><dd>For every fail, a one-line reason written by the AI.</dd></div>
+            <div><dt>Why</dt><dd>A one-line reason for every fail, written by the AI. A check handed to you shows why.</dd></div>
           </dl>
         </div>
       </details>

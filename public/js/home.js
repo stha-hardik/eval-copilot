@@ -214,7 +214,7 @@
         '<div class="field"><label class="label" for="ns-url">Website link</label>' +
           '<div class="input-wrap has-trail"><input class="input" id="ns-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://yourstore.com" aria-describedby="ns-url-hint ns-url-err">' +
           '<span class="input-trail is-static" aria-hidden="true"><i data-lucide="link"></i></span></div>' +
-          '<div class="hint" id="ns-url-hint"><i data-lucide="shield-check" aria-hidden="true"></i> Public link only. We never ask for passwords or keys.</div>' +
+          '<div class="hint" id="ns-url-hint"><i data-lucide="shield-check" aria-hidden="true"></i> Public link only. We never log in, pay or fill in forms on your site.</div>' +
           '<div class="error-msg" id="ns-url-err"></div></div>' +
         '<div class="modal-actions"><button class="btn btn-ghost" type="button" id="ns-cancel">Cancel</button>' +
           '<button class="btn btn-primary" type="submit" id="ns-create"><i data-lucide="rocket" aria-hidden="true"></i>Create project</button></div>' +
