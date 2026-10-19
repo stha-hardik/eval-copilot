@@ -1,0 +1,262 @@
+[
+  {
+    "name": "laptop-light: landing headline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-light: logged out shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-light: logged out hides Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-light: no sideways scroll",
+    "ok": true,
+    "detail": "page 1280 / viewport 1280"
+  },
+  {
+    "name": "laptop-light: Test yours → /signup",
+    "ok": true,
+    "detail": "/signup"
+  },
+  {
+    "name": "laptop-light: sign up page links to log in",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-light: projects page → /login?next=",
+    "ok": true,
+    "detail": "/login?next=%2Fhome.html"
+  },
+  {
+    "name": "laptop-light: no script errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-dark: landing headline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-dark: logged out shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-dark: logged out hides Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop-dark: no sideways scroll",
+    "ok": true,
+    "detail": "page 1280 / viewport 1280"
+  },
+  {
+    "name": "laptop-dark: no script errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-light: landing headline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-light: logged out shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-light: logged out hides Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-light: no sideways scroll",
+    "ok": true,
+    "detail": "page 390 / viewport 390"
+  },
+  {
+    "name": "phone-light: Test yours → /signup",
+    "ok": true,
+    "detail": "/signup"
+  },
+  {
+    "name": "phone-light: sign up page links to log in",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-light: projects page → /login?next=",
+    "ok": true,
+    "detail": "/login?next=%2Fhome.html"
+  },
+  {
+    "name": "phone-light: no script errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-dark: landing headline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-dark: logged out shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-dark: logged out hides Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone-dark: no sideways scroll",
+    "ok": true,
+    "detail": "page 390 / viewport 390"
+  },
+  {
+    "name": "phone-dark: no script errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop: after sign up → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "laptop: logged in, /login → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "laptop: logged in shows Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop: logged in hides Log in / Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop: logged in Test yours → projects",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "laptop: Dashboard → projects page",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "laptop: theme switch sits between Signed in as and Log out",
+    "ok": true,
+    "detail": "[0,58,69]"
+  },
+  {
+    "name": "laptop: theme switch changes the theme",
+    "ok": true,
+    "detail": "light → dark"
+  },
+  {
+    "name": "laptop: theme choice kept after reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop: log out → landing",
+    "ok": true,
+    "detail": "/"
+  },
+  {
+    "name": "laptop: logged out again shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "laptop: log in → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "laptop: log in from a protected page → back to it",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: after sign up → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: logged in, /login → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: logged in shows Dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone: logged in hides Log in / Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone: logged in Test yours → projects",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: Dashboard → projects page",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: theme switch sits between Signed in as and Log out",
+    "ok": true,
+    "detail": "[0,57,68]"
+  },
+  {
+    "name": "phone: theme switch changes the theme",
+    "ok": true,
+    "detail": "light → dark"
+  },
+  {
+    "name": "phone: theme choice kept after reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone: log out → landing",
+    "ok": true,
+    "detail": "/"
+  },
+  {
+    "name": "phone: logged out again shows Log in + Sign up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "phone: log in → dashboard",
+    "ok": true,
+    "detail": "/home.html"
+  },
+  {
+    "name": "phone: log in from a protected page → back to it",
+    "ok": true,
+    "detail": "/home.html"
+  }
+]
