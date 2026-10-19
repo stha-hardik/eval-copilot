@@ -583,7 +583,7 @@ def build_rows(db: Db, run_id: str, pair_id: str | None = None) -> list[dict]:
     """Results of a run (optionally one pair) in the Row shape, ordered for the results table."""
     params = {"run_id": f"eq.{run_id}",
               "select": "*,golden_pairs(position,user_does,good_result,is_priority),"
-                        "result_checks(id,check_id,passed,why,checks(decided_by,rule,expected,created_at))"}
+                        "result_checks(id,check_id,passed,why,checks(decided_by,rule,expected,steps,created_at))"}
     if pair_id:
         params["golden_pair_id"] = f"eq.{pair_id}"
     results = db.select("results", **params)
@@ -594,7 +594,7 @@ def build_rows(db: Db, run_id: str, pair_id: str | None = None) -> list[dict]:
         for rc in sorted(r.get("result_checks") or [], key=lambda x: (x.get("checks") or {}).get("created_at") or ""):
             c = rc.get("checks") or {}
             checks.append({"id": rc["id"], "check_id": rc["check_id"], "decided_by": c.get("decided_by"),
-                           "rule": c.get("rule"), "expected": c.get("expected"),
+                           "rule": c.get("rule"), "expected": c.get("expected"), "steps": c.get("steps"),
                            "passed": rc["passed"], "why": rc["why"]})
         rows.append({
             "result_id": r["id"], "run_id": r["run_id"], "pair_id": r["golden_pair_id"],

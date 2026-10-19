@@ -19,7 +19,7 @@ Pair     = { id, project_id, position, user_does, good_result, request_url, meth
              created_at, checks: Check[], has_results: bool }
 Draft    = { user_does, good_result, request_url, method, request_body, checks: Check[] }   (no id yet)
 RunInfo  = { id, project_id, run_number, kind: "full"|"changed", started_at, passed, total }
-CheckResult = { id (result_check id), check_id, decided_by, rule, expected, passed: true|false|null, why }
+CheckResult = { id (result_check id), check_id, decided_by, rule, expected, steps, passed: true|false|null, why }
 Row      = { result_id, run_id, pair_id, position, user_does, good_result, is_priority, device: "phone"|"laptop",
              status_code: int|null, outcome: "pass"|"fail"|"cant_test", what_site_said, why (one line, "" on pass),
              checks: CheckResult[], via: "fetch"|"browser"|"human",
