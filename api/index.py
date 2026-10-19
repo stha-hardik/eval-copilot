@@ -226,7 +226,7 @@ def health():
 
 @app.post("/api/demo-ai/answer")
 async def demo_ai_answer(request: Request):
-    """A tiny demo "AI feature" to test Eval Co-pilot against (AUDIT.md section 4). Public, capped, no data stored."""
+    """A tiny demo "AI feature" to test Eval Co-pilot against (the audit's AI-app test). Public, capped, no data stored."""
     from _lib import demo_ai
     body = await body_of(request)
     out = demo_ai.answer(body.get("text"))

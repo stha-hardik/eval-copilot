@@ -184,5 +184,5 @@
     off) and then worked in 5 of 5 retries: the tap came before the page's own scripts were ready. The browser now waits
     for the network to go quiet (up to 5 s) after opening a page.
 49. **Demo AI app for the audit only.** `POST /api/demo-ai/answer` (`api/_lib/demo_ai.py`) is a tiny Bubl shop assistant
-    on Groq `openai/gpt-oss-20b`, used to prove Eval Co-pilot can test an AI feature (AUDIT.md section 4). It is public,
+    on Groq `openai/gpt-oss-20b`, used to prove Eval Co-pilot can test an AI feature (the audit's AI-app test). It is public,
     input capped at 300 characters, short answers, nothing stored. Remove it after the hackathon if not needed.

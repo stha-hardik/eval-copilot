@@ -218,5 +218,7 @@ new checks: **52 of 52 passed**.
 
 ## Runs 9–12, before/after screenshots and the audit (20 Oct 2026)
 
-See `AUDIT.md` sections 3–5: two-user security test 93/93, functional and error-state tests, Runs 9–12 (final Run 12:
-22 rows, 20 pass, 2 fail on #6, 0 can't test) and the demo AI app test (planted flaw caught, fixed, 4 FIXED).
+- Two-user security test, live (fresh accounts A and B; doors and direct Supabase REST): 93 probes, 93 PASS.
+- Run 12 (final, Bubl Solar): 22 rows, 20 pass, 2 fail (#6), 0 can't test.
+- Demo AI app test: planted "no prices" flaw caught in Run 1; prompt fixed; Re-run changed: 4 FIXED, "Good now? yes";
+  Run 1 untouched.
