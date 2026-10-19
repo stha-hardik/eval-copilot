@@ -950,7 +950,7 @@ def test_door_9_survives_a_parallel_call_saving_a_device_first(env, api, world):
         res = FakeDb(TOK_A, store).insert("results", {"run_id": run_id, "golden_pair_id": pair_id, "device": "phone",
                                                        "outcome": "cant_test", "what_site_said": "from the other call"})[0]
         FakeDb(TOK_A, store).insert("result_checks", {"result_id": res["id"], "check_id": check_id,
-                                                        "passed": None, "why": "You look: x"})
+                                                        "passed": None, "why": "You check: x"})
 
     env.store.before_insert["results"] = rival
     rows = ok(api.post(f"/api/runs/{run_id}/pairs/{pair_id}"), 201)["rows"]
@@ -1020,7 +1020,7 @@ def test_door_9_manual_check_waits_for_a_human(api, world, ran):
         status, text, manual = row["checks"]
         assert (status["passed"], text["passed"]) == (True, True)
         assert (manual["decided_by"], manual["rule"], manual["passed"]) == ("human", "manual", None)
-        assert manual["why"] == "You look: Do the product photos look right?"
+        assert manual["why"] == "You check: Do the product photos look right?"
 
 
 def test_door_9_pair_with_only_manual_checks_is_cant_test(api, world, ran):
@@ -1028,7 +1028,7 @@ def test_door_9_pair_with_only_manual_checks_is_cant_test(api, world, ran):
         check_row(row)
         assert row["outcome"] == "cant_test" and row["status_code"] == 200 and row["why"] == LOOK_WHY
         assert [c["passed"] for c in row["checks"]] == [None]
-        assert row["checks"][0]["why"] == "You look: Does the home page look friendly?"
+        assert row["checks"][0]["why"] == "You check: Does the home page look friendly?"
 
 
 def test_door_9_errors(env, api, world):

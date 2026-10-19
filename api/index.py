@@ -482,7 +482,7 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, session
         carrier = next((c for c in auto if c["rule"] == "status_ok"), auto[0] if auto else None)
         for c in fetch_checks:
             if c["rule"] == "manual":
-                decided[c["id"]] = {"passed": None, "why": f"You look: {c['expected']}"}
+                decided[c["id"]] = {"passed": None, "why": f"You check: {c['expected']}"}
             elif c is carrier:
                 decided[c["id"]] = {"passed": False, "why": reason}
                 failed_code.append({**c, "rule": "status_ok", "expected": None, "detail": reason})
@@ -491,7 +491,7 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, session
     else:
         for c in fetch_checks:
             if c["rule"] == "manual":
-                decided[c["id"]] = {"passed": None, "why": f"You look: {c['expected']}"}
+                decided[c["id"]] = {"passed": None, "why": f"You check: {c['expected']}"}
             elif c["rule"] in CODE_RULES:
                 ok, detail = site.run_code_check(c["rule"], c["expected"], page)
                 decided[c["id"]] = {"passed": ok, "why": detail}

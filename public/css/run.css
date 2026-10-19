@@ -37,7 +37,7 @@
 .how-to-read > summary { gap: var(--space-md); min-height: 64px; font-size: var(--fs-l); }
 .how-to-read .icon-tile { width: 44px; height: 44px; color: var(--cant-text); }
 .key-list { margin: 0; padding: var(--space-xs) 0 var(--space-md); display: grid; gap: var(--space-md); }
-.key-list > div { display: grid; gap: 2px; }
+.key-list > div { display: grid; gap: 2px; align-content: start; }
 .key-list dt { font-weight: 700; font-size: var(--fs-m); color: var(--text); }
 .key-list dd { margin: 0; color: var(--muted); font-size: var(--fs-m); }
 @media (min-width: 641px) {
