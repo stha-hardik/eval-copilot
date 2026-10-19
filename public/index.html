@@ -3,10 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Eval Co-pilot</title>
+  <title>Log in · Eval Co-pilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <h1>Eval Co-pilot</h1>
-  <p>Hello. The app is being built.</p>
+  <main class="auth-wrap">
+    <section class="card auth-card stack-lg" aria-labelledby="app-name">
+      <div class="stack">
+        <h1 id="app-name" class="brand-name">Eval Co-pilot</h1>
+        <p class="tagline">Test your live site the way your customers use it — on a phone and a laptop.</p>
+      </div>
+
+      <div class="segmented" role="group" aria-label="Log in or sign up">
+        <button type="button" class="segmented-btn" id="tab-login" aria-pressed="true">Log in</button>
+        <button type="button" class="segmented-btn" id="tab-signup" aria-pressed="false">Sign up</button>
+      </div>
+
+      <form id="auth-form" class="stack" novalidate>
+        <div id="form-banner" role="alert"></div>
+
+        <div class="field">
+          <label class="label" for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email"
+                 autocapitalize="off" spellcheck="false" placeholder="you@yourstore.com" aria-describedby="email-error">
+          <div class="error-msg" id="email-error"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password"
+                 aria-describedby="password-hint password-error">
+          <div class="hint" id="password-hint" hidden>At least 8 characters</div>
+          <div class="error-msg" id="password-error"></div>
+        </div>
+
+        <button class="btn btn-primary" id="submit" type="submit">Log in</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/login.js"></script>
 </body>
 </html>
