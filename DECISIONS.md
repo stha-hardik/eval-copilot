@@ -67,3 +67,13 @@
 23. **A human's "Looks right / Looks wrong" answer is saved on the check, not on the result.** Results can
     never be changed (that's what keeps Run 1 honest), so the row's outcome stays what the run decided and
     the screen shows the human's answer next to it.
+24. **Fixed four of the AI-proposed checks before Run 1** (checks lock once a pair has run). Seeded with
+    Tidy with AI on 19 Oct 2026, then compared with the live pages: #8 had `text_absent "5"`, which always
+    fails on Shopify's cart reply (prices and ids contain 5s), so it became "exactly 1 item, 1 line, colour
+    Black". #10's `text_has "Shipping"` / `"discount"` always passed because the cart reply has
+    `requires_shipping` / `total_discount` fields, so they became an AI check on the cart plus a manual
+    checkout check (the checkout page can't be reached without a browser). #5 and #6 looked for phrases the
+    page never uses ("charging options", "price", "availability"), so they now look for the page's real
+    headings (Dimensions, Lumen, Charging time, Runtime, Warranty) and ask the AI the rest.
+25. **Local tests need Python 3.10+.** The code uses `X | None` type hints (Vercel runs Python 3.12). On a
+    Mac whose `python3` is 3.9, make a 3.12 venv first (e.g. `uv venv --python 3.12`).
