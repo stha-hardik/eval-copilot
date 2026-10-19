@@ -26,9 +26,14 @@ export default async function ({ page, context }) {
     };
     const any = (sel) => [...document.querySelectorAll(sel)].some(seen);
     const path = location.pathname.toLowerCase();
-    if (/\/checkouts?(\/|$)|\/payments?(\/|$)/.test(path) ||
+    // Third-party one-click checkouts open as a big frame from their own site (phone + OTP, then payment).
+    const big = (el) => { const r = el.getBoundingClientRect(); return seen(el) && r.width * r.height > innerWidth * innerHeight * 0.2; };
+    const checkoutFrame = [...document.querySelectorAll("iframe")].some((f) => big(f) &&
+      /gokwik|shiprocket|fastrr|razorpay|simpl|cashfree|juspay|paytm|phonepe|snapmint|zecpe|breeze|checkout|payment/i.test(f.src || f.id || f.name || ""));
+    if (/\/checkouts?(\/|$)|\/payments?(\/|$)/.test(path) || checkoutFrame ||
         any('input[autocomplete^="cc-"], iframe[src*="card-fields"], iframe[src*="shopifycs"], iframe[src*="stripe"]')) return "payment";
-    if (/\/account\/login|\/login|\/signin|\/sign-in/.test(path) || any("input[type=password]")) return "login";
+    if (/\/account\/login|\/login|\/signin|\/sign-in/.test(path) || any("input[type=password]") ||
+        any('input[autocomplete="one-time-code"], input[name*="otp" i], input[id*="otp" i]')) return "login";
     if (/just a moment|attention required|verify you are human/i.test(document.title) ||
         any('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="challenges.cloudflare"]')) return "captcha";
     return null;
@@ -39,7 +44,8 @@ export default async function ({ page, context }) {
     let closed = 0;
     const W = innerWidth, H = innerHeight;
     const isPopup = (el) => /popup|modal|overlay|newsletter|klaviyo|privy|poppro|spin|wheel|cookie|consent|subscribe/i
-      .test(`${el.id} ${el.className}`) && !/cart|drawer|menu|header|search/i.test(`${el.id} ${el.className}`);
+      .test(`${el.id} ${el.className}`) && !/cart|drawer|menu|header|search|checkout|gokwik|shiprocket|razorpay/i.test(`${el.id} ${el.className}`) &&
+      !el.querySelector("iframe");  // a pop-up holding a frame may be a checkout: leave it for the guard
     for (const el of document.querySelectorAll("body *")) {
       const s = getComputedStyle(el);
       if (s.position !== "fixed" || s.display === "none" || s.visibility === "hidden" || !isPopup(el)) continue;
@@ -103,6 +109,8 @@ export default async function ({ page, context }) {
         await sleep(Math.min(step.wait_ms || 1800, 5000));
         if (navigating) { await loaded; await sleep(1500); }
         page.off("request", onRequest);
+        // Some clicks open a slow pop-up (e.g. a one-click checkout) instead of a page: look twice.
+        if (!navigating && !(await guard())) await sleep(2500);
         out.notes.push(`clicked ${label}`);
       } else if (step.wait) {
         await sleep(Math.min(Number(step.wait) * 1000, 5000));

@@ -407,10 +407,7 @@
       "click": "css=button[name=add]"
      },
      {
-      "goto": "/cart"
-     },
-     {
-      "click": "css=button[name=checkout]"
+      "goto": "/checkout"
      }
     ]
    }

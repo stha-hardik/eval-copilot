@@ -12,6 +12,6 @@ show the new rule). Steps were checked on the live site with a local browser fir
 | #7 Turn On preview | lamp lit, can close | `ai_vision` | open `/products/solaris`, click `text=Turn On` |
 | #8 add to cart once | (cart API checks) | `browser_count` item_count=1 and items.length=1, `ai_vision` one Solaris in Black | open `/products/solaris`, click `css=button[name=add]` |
 | #9 Solaris + Walkie | options and quantities right | `ai_judge` (plain read of the cart) | – |
-| #10 order summary | checkout matches the cart | `ai_vision` | open `/products/solaris`, click Add to cart, open `/cart`, click `css=button[name=checkout]` (the payment page hands it to a person) |
+| #10 order summary | checkout matches the cart | `ai_vision` | open `/products/solaris`, click Add to cart, open `/checkout` (the payment page hands it to a person). Clicking "Check out" on the cart page did nothing in an automated browser (no request at all), so the step opens Shopify's `/checkout` directly |
 
 #8's own request changed from `POST /cart/add.js` to `GET /products/solaris` (the clicks now add to the cart).

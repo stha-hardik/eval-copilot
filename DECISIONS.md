@@ -105,3 +105,41 @@
     left out at the owner's request: it could only say whether our own server answers, which a builder could
     misread as "your site is fine". On phones the tabs move to a bottom tab bar. The ring on the pass-rate tile is the one animation
     that is not transform/opacity (a tiny SVG stroke).
+
+## M7: real browser replaces human checks (19 Oct 2026)
+
+30. **Browserless through its Function API, from Python with `requests`.** `api/_lib/browser.py` posts
+    `api/_lib/browser_fn.mjs` (Puppeteer) to `https://production-sfo.browserless.io/function` with the steps as
+    `context`. One HTTP call = one session, so the whole multi-step flow (open, click, read the cart, one screenshot)
+    runs in one browser with no Playwright or Chromium on Vercel. Session timeout 45 s, ads/fonts/media blocked,
+    images only when a screenshot is needed.
+31. **Finding the token.** The build session could not list Vercel env var names (the connector is read-only), so
+    the server reads `BROWSERLESS_TOKEN`, else any variable with BROWSERLESS in its name, else one with BROWSER and
+    TOKEN/KEY. `/api/health` reports only `browser: true/false`.
+32. **One session per pair + device uses the first browser check's steps.** All browser checks of a pair share that
+    session and its one screenshot (the owner's rule), so a pair's browser checks should share the same steps.
+33. **The safety guard runs after every step,** not only at the end: payment pages (Shopify `/checkouts`, card
+    fields, or a big frame from a one-click checkout provider such as GoKwik / Shiprocket / Razorpay), login pages
+    (password or OTP fields, `/account/login`) and bot checks stop the session and hand the check to a person.
+    Clicks on pay / place order / buy it now / log in / sign up / subscribe / "spin" are refused, both when a pair is
+    saved (400) and in the browser. The browser never types anything.
+34. **Marketing pop-ups are closed like a shopper would** (their close button, else hidden). bublsolar.com shows a
+    "Spin & Win" pop-up that covered the colour swatches and blocked clicks. A pop-up that holds a frame is left
+    alone, because it may be a checkout.
+35. **Longer function time.** Two browser sessions one after the other (phone, then laptop) plus the AI can take
+    over 60 s, so `vercel.json` gives `api/index.py` 150 s (Fluid compute; the deploy accepted it). Door 9 keeps
+    30 s for the AI; a laptop session that would not fit is handed to a person with the reason.
+36. **#2, #4 and #9 keep plain page reads.** Their manual checks became `ai_judge` questions on the page text
+    (search result listed, prices listed, cart contents), as the owner's spec says those pairs stay fetch.
+    #8 changed its own request from the cart API to the product page, because the real click now adds to the cart.
+37. **Manual checks were converted in place.** Old results keep their answers; on old runs those checks now show
+    the new rule's tag. Deleting the old checks would have deleted old results, which is never allowed.
+38. **Vision model:** Groq `meta-llama/llama-4-scout-17b-16e-instruct` (Groq's vision docs), JPEG at quality 55
+    (about 15–55 KB, far under Groq's 4 MB base64 limit), JSON `{passed, why, confident}`. Not confident → ask again
+    once for just those checks → still not confident → a person.
+39. **The cap counts results with `via` browser or human in the run** (each is one session or a refused one), so a
+    re-run of one pair uses at most 2 sessions and a full Bubl run uses 10 of the 12 allowed.
+40. **Live tests used a throwaway test account with an exact copy of the owner's Bubl Solar pairs.** The build
+    session can't log in as the owner (it never has the password), so a GitHub Actions runner signed up a test
+    account through the app, copied the 10 pairs exactly as stored, and ran them on the live link. The owner's own
+    project has the same checks and runs the same way from "Run all".
