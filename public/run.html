@@ -6,13 +6,20 @@
   <title>Results · Eval Co-pilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/run.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/home.html">Eval Co-pilot</a>
+    <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
+      <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
+      <span class="brand-name">Eval Co-pilot</span>
+    </a>
+    <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
+      <a class="nav-pill" href="/home.html">My projects</a>
+      <span class="nav-pill is-active" id="run-crumb" aria-current="page">Run</span>
+    </nav>
     <span class="spacer"></span>
     <span class="user-email" id="user-email"></span>
     <button type="button" class="btn btn-ghost btn-sm" id="logout">Log out</button>
@@ -23,22 +30,28 @@
     <div class="stack-lg" id="loading" aria-busy="true" aria-label="Loading the results">
       <div class="stack">
         <div class="skeleton" style="height:16px;width:160px"></div>
-        <div class="skeleton" style="height:32px;width:240px"></div>
-        <div class="skeleton" style="height:16px;width:320px;max-width:100%"></div>
+        <div class="skeleton" style="height:40px;width:300px;max-width:100%"></div>
+        <div class="skeleton" style="height:12px"></div>
       </div>
+      <div class="skeleton skeleton-card" style="height:84px"></div>
       <div class="stack">
-        <div class="skeleton" style="height:56px"></div>
-        <div class="skeleton" style="height:56px"></div>
-        <div class="skeleton" style="height:56px"></div>
-        <div class="skeleton" style="height:56px"></div>
+        <div class="skeleton skeleton-card" style="height:96px"></div>
+        <div class="skeleton skeleton-card" style="height:96px"></div>
+        <div class="skeleton skeleton-card" style="height:96px"></div>
       </div>
     </div>
     <div class="stack-lg" id="screen" hidden>
-      <div id="head"></div>
+      <div class="run-head enter">
+        <div id="head"></div>
+        <div id="live-progress" hidden></div>
+      </div>
       <section id="changed-panel" hidden aria-labelledby="changed-title"></section>
-      <div id="live-progress" hidden></div>
-      <details class="how-to-read" id="how-to-read" open>
-        <summary>How to read this</summary>
+      <details class="how-to-read card enter" id="how-to-read" style="--i:1" open>
+        <summary>
+          <span class="icon-tile"><i data-lucide="lightbulb" aria-hidden="true"></i></span>
+          <span class="htr-title">How to read this</span>
+          <i data-lucide="chevron-down" class="htr-chev" aria-hidden="true"></i>
+        </summary>
         <dl class="key-list">
           <div><dt>#</dt><dd>The pair's number.</dd></div>
           <div><dt>What the user does</dt><dd>The thing a visitor tries on your site.</dd></div>
@@ -48,10 +61,13 @@
           <div><dt>Why</dt><dd>For every fail, a one-line reason written by the AI.</dd></div>
         </dl>
       </details>
-      <section class="stack" id="results-section" aria-labelledby="results-title">
-        <h2 class="section-title" id="results-title">Results</h2>
+      <section class="stack enter" style="--i:2" id="results-section" aria-labelledby="results-title">
+        <div class="section-head">
+          <h2 class="section-title" id="results-title">Results</h2>
+          <span class="label-caps" id="results-sort"></span>
+        </div>
         <div id="manual-banner"></div>
-        <div id="table-area"></div>
+        <div id="feed-area"></div>
       </section>
       <section class="stack" id="points-section" aria-labelledby="points-title"></section>
       <section id="rerun-section" hidden aria-labelledby="rerun-title"></section>

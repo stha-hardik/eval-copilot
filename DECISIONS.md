@@ -85,3 +85,14 @@
     In Run 1 one AI check (#10 phone) came back "AI could not judge" because both tries hit that limit
     back to back. On a 429 the server now waits as long as Groq asks (inside the time budget) before
     the retry.
+28. **Redesign to the owner's "Tactile Calm" mockups (19 Oct 2026).** The owner sent Stitch mockups (PNG +
+    HTML) for every screen and asked for motion from their kole-uiux-skills animation rules. We kept the look
+    (soft raised / pressed surfaces on one chalk-blue base, Plus Jakarta Sans, sage / terracotta / amber
+    status colours) but translated it to plain CSS (no Tailwind CDN, no Material Symbols: Lucide stays the
+    one icon set). Mockup decoration with no real feature behind it was left out (e.g. "Forgot?",
+    "All systems operational", "Overall health 92.5%", staging server log, "Download diff log") because the
+    build rules forbid invented features and made-up numbers. The accent was deepened from `#5B7FAE` to
+    `#4E72A1` so white button text passes AA contrast. Light theme only, as in the mockups. Motion:
+    transform/opacity only, ease-out curves, one signature moment per screen (results rows slide in and
+    their status pops as each pair finishes), and `prefers-reduced-motion` turns it all off. The old
+    `docs/UIUX_RULES.md` digest is superseded by `docs/REDESIGN.md` where they differ.

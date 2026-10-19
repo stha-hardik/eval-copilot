@@ -931,7 +931,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--fs-m); co
   gap: var(--gutter);
   margin-bottom: var(--space-lg);
 }
-@media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .stats { gap: var(--space-sm); } .stat { padding: var(--space-sm) var(--space-md); } .stat .icon-tile { display: none; } }
 .stat {
   display: flex;
   align-items: center;

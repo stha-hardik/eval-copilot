@@ -14,6 +14,7 @@
     project: null,
     pairs: [],
     runs: [],
+    filter: "all", // all | priority | suggested
     editors: new Map(), // key -> editor (unsaved drafts "d1", and in-place edits "e-<pairId>")
   };
   let draftSeq = 0;
@@ -94,18 +95,31 @@
   function renderPage() {
     const pr = state.project;
     document.title = pr.name + " · Eval Co-pilot";
+    setNav(pr.name);
     page.innerHTML =
       '<div class="stack-lg">' +
-        '<div class="page-head project-head" id="head">' + headHtml() + "</div>" +
-        '<section class="stack" id="sec-add" aria-labelledby="add-title">' + addCardHtml() + '<div class="stack" id="drafts"></div></section>' +
-        '<section class="stack" id="sec-list" aria-labelledby="list-title"></section>' +
-        '<section id="sec-run"></section>' +
+        '<div class="page-head project-head enter" id="head">' + headHtml() + "</div>" +
+        '<section class="stack enter" style="--i:1" id="sec-add" aria-labelledby="add-title">' + addCardHtml() +
+          '<div class="suggest-row" id="sec-suggest">' +
+            '<button class="btn btn-secondary" type="button" data-act="suggest" id="suggest-btn">' + icon("sparkles") + "Suggest pairs</button>" +
+            '<p class="hint" id="suggest-help">The AI reads your home page like a sales expert and suggests pairs for you to check.</p>' +
+          "</div>" +
+          '<div class="stack" id="drafts"></div></section>' +
+        '<section class="stack enter" style="--i:2" id="sec-list" aria-labelledby="list-title"></section>' +
+        '<div class="enter" style="--i:3" id="sec-run"></div>' +
       "</div>";
     renderAddIntro();
-    renderList();
+    renderList(true);
     renderRun();
     setupVoice();
     icons();
+  }
+
+  function setNav(name) {
+    const nav = document.getElementById("ctx-nav");
+    if (!nav) return;
+    nav.innerHTML = '<a class="nav-pill" href="/home.html">My projects</a>' +
+      '<span class="nav-pill is-active" aria-current="page">' + esc(name) + "</span>";
   }
 
   function headHtml() {
@@ -127,12 +141,36 @@
     }
     return (
       '<div class="head-main">' +
-        '<a class="back-link" href="/home.html">' + icon("arrow-left") + "My sites</a>" +
+        '<a class="back-link" href="/home.html">' + icon("arrow-left") + "Back to My projects</a>" +
         "<h1>" + esc(pr.name) + "</h1>" +
-        '<a class="site-link muted small" href="' + esc(safeHref(pr.site_url)) + '" target="_blank" rel="noopener noreferrer">' +
-          esc(pr.site_url) + icon("external-link") + "</a>" +
-      "</div>" + past
+        '<a class="site-chip" href="' + esc(safeHref(pr.site_url)) + '" target="_blank" rel="noopener" title="' + esc(pr.site_url) + '">' +
+          "<span>" + esc(hostOf(pr.site_url) || pr.site_url) + "</span>" + icon("external-link") + "</a>" +
+        "<p class=\"muted\">Up to " + GOAL + " golden pairs. We try each one on your live site as a phone and as a laptop.</p>" +
+      "</div>" +
+      '<div class="head-side">' +
+        '<div class="card count-card" id="count-card"></div>' + past +
+      "</div>"
     );
+  }
+
+  function renderCount() {
+    const el = document.getElementById("count-card");
+    if (!el) return;
+    const c = counts();
+    const frac = Math.max(0, Math.min(1, c.total / GOAL));
+    const label = c.total <= GOAL ? c.total + " of " + GOAL + " pairs" : c.total + " pairs";
+    const bar = el.querySelector(".progress-fill");
+    if (bar) {
+      bar.style.setProperty("--p", frac.toFixed(4));
+      el.querySelector("[data-count-label]").textContent = label;
+      el.querySelector("[data-count-sub]").textContent = c.approved + " approved";
+      el.querySelector(".progress").setAttribute("aria-valuenow", String(Math.min(c.total, GOAL)));
+      return;
+    }
+    el.innerHTML =
+      '<div class="count-top"><strong data-count-label>' + esc(label) + '</strong><span class="muted" data-count-sub>' + c.approved + " approved</span></div>" +
+      '<div class="progress progress-sm count-bar" role="progressbar" aria-label="Golden pairs written" aria-valuemin="0" aria-valuemax="' + GOAL +
+        '" aria-valuenow="' + Math.min(c.total, GOAL) + '"><div class="progress-fill" style="--p:' + frac.toFixed(4) + '"></div></div>';
   }
 
   // ---------- Add card ----------
@@ -140,26 +178,30 @@
     return (
       '<div class="card stack" id="add-card">' +
         '<div class="stack-sm">' +
-          '<h2 class="section-title" id="add-title">Add a golden pair</h2>' +
+          '<div class="compose-title"><span class="icon-tile"><i data-lucide="pen-line" aria-hidden="true"></i></span>' +
+          '<h2 class="section-title" id="add-title">Add a golden pair</h2></div>' +
           '<p class="muted" id="add-intro"></p>' +
         "</div>" +
         '<div id="add-banner"></div>' +
-        '<div class="two-col">' +
-          taFieldHtml("user_does", "What does the user do?", "Searches for “Solaris” on the home page") +
-          taFieldHtml("good_result", "What does a good result look like?", "Solaris appears, and the link opens the right product page") +
-        "</div>" +
-        '<p class="hint voice-hint" id="voice-hint" hidden>Voice typing works in Chrome and Safari.</p>' +
-        '<div class="example">' +
-          '<div class="example-title">Example pair</div>' +
-          '<div class="example-row"><span class="example-k">User does</span><span>Searches “Solaris”</span></div>' +
-          '<div class="example-row"><span class="example-k">Good result</span><span>Solaris appears, and the link opens the right product page.</span></div>' +
-        "</div>" +
-        '<div class="row"><button class="btn btn-primary" type="button" data-act="tidy" id="tidy-btn">' + icon("wand-sparkles") + "Tidy with AI</button></div>" +
-        '<div class="suggest-block">' +
-          '<div class="row suggest-row">' +
-            '<button class="btn btn-secondary" type="button" data-act="suggest" id="suggest-btn">' + icon("sparkles") + "Suggest pairs</button>" +
-            '<p class="hint" id="suggest-help">Optional: the AI looks at your home page like a sales expert and suggests pairs.</p>' +
+        '<div class="compose-grid">' +
+          '<div class="compose-main">' +
+            '<div class="two-col">' +
+              taFieldHtml("user_does", "What does the user do?", "Searches for “Solaris” on the home page") +
+              taFieldHtml("good_result", "What does a good result look like?", "Solaris appears, and the link opens the right product page") +
+            "</div>" +
+            '<div class="compose-actions">' +
+              '<button class="btn btn-secondary" type="button" data-act="tidy" id="tidy-btn">' + icon("wand-sparkles") + "Tidy with AI</button>" +
+              '<p class="hint voice-hint" id="voice-hint" hidden>Voice typing works in Chrome and Safari.</p>' +
+            "</div>" +
           "</div>" +
+          '<aside class="example" aria-label="Example pair">' +
+            '<span class="label-caps example-title">' + icon("lightbulb") + "Example</span>" +
+            '<p class="example-note">Write it the way you would tell a friend.</p>' +
+            '<div class="example-card">' +
+              '<span class="example-k">User does</span><span>Searches “Solaris”</span>' +
+              '<span class="example-k">Good result</span><span>Solaris appears, and the link opens the right product page.</span>' +
+            "</div>" +
+          "</aside>" +
         "</div>" +
       "</div>"
     );
@@ -193,7 +235,7 @@
   const addBanner = {
     show(msg) {
       document.getElementById("add-banner").innerHTML =
-        '<div class="banner banner-error" role="alert">' + icon("triangle-alert") + "<span>" + esc(msg) + "</span></div>";
+        '<div class="banner banner-error" role="alert"><span class="banner-icon">' + icon("circle-alert") + '</span><div class="banner-body"><span>' + esc(msg) + "</span></div></div>";
       icons();
     },
     clear() { const b = document.getElementById("add-banner"); if (b) b.innerHTML = ""; },
@@ -332,6 +374,7 @@
     const tmp = document.createElement("div");
     tmp.innerHTML = editorHtml(ed);
     const el = tmp.firstElementChild;
+    el.classList.add("draft-in");
     holder.appendChild(el);
     icons();
     if (!keepScroll) scrollToEl(el);
@@ -344,7 +387,7 @@
     if (!state.editors.has(key)) {
       state.editors.set(key, newEditor(p, { key, kind: "edit", source: p.source, pairId: p.id, locked: !!p.has_results, position: p.position }));
     }
-    renderList();
+    renderList(false);
     const el = editorEl(key);
     if (el) { scrollToEl(el); const f = el.querySelector('[data-f="user_does"]'); if (f) f.focus({ preventScroll: true }); }
   }
@@ -415,10 +458,10 @@
     const isEdit = ed.kind === "edit";
     let head;
     if (ed.kind === "tidy") {
-      head = '<span class="pill pill-neutral">' + icon("wand-sparkles") + "Tidied by AI</span>" +
+      head = '<span class="pill pill-human has-icon">' + icon("wand-sparkles") + "Tidied by AI</span>" +
         '<h3 class="section-title">Tidied by AI — check it, then save</h3>';
     } else if (ed.kind === "suggested") {
-      head = '<span class="pill pill-neutral">' + icon("sparkles") + "Suggested</span>" +
+      head = '<span class="pill pill-human has-icon">' + icon("sparkles") + "Suggested</span>" +
         '<h3 class="section-title">Suggested by the AI — check it, then save</h3>';
     } else {
       head = '<h3 class="section-title">Edit pair #' + esc(ed.position) + "</h3>";
@@ -473,7 +516,7 @@
           checksBody +
         "</div>" +
         '<div class="row draft-actions">' +
-          '<button class="btn btn-primary" type="button" data-act="save-ed">' + (isEdit ? "Save changes" : "Save pair") + "</button>" +
+          '<button class="btn btn-secondary" type="button" data-act="save-ed">' + (isEdit ? "Save changes" : "Save pair") + "</button>" +
           '<button class="btn btn-ghost" type="button" data-act="discard-ed">' + (isEdit ? "Cancel" : "Discard") + "</button>" +
         "</div>" +
       "</div>"
@@ -560,7 +603,7 @@
           const idx = state.pairs.findIndex((p) => String(p.id) === String(ed.pairId));
           if (idx >= 0 && r && r.pair) state.pairs[idx] = r.pair;
           state.editors.delete(ed.key);
-          renderList();
+          renderList(false);
           renderRun();
           EC.toast("Changes saved.", "success");
         } else {
@@ -571,8 +614,9 @@
           const el = editorEl(ed.key);
           if (el) el.remove();
           newPairId = r.pair.id;
+          state.filter = "all";
           renderAddIntro();
-          renderList();
+          renderList(false);
           renderRun();
           EC.toast("Pair saved. Approve it when it looks right.", "success");
           scrollToEl(document.querySelector('[data-pair="' + String(newPairId).replace(/"/g, "") + '"]'));
@@ -586,7 +630,7 @@
   function discardEditor(ed) {
     state.editors.delete(ed.key);
     if (ed.kind === "edit") {
-      renderList();
+      renderList(false);
     } else {
       const el = editorEl(ed.key);
       if (el) el.remove();
@@ -594,64 +638,109 @@
   }
 
   // ---------- Pairs list ----------
-  function pairCardHtml(p) {
+  function kindChips(p) {
+    const seen = [];
+    (p.checks || []).forEach((c) => { if (seen.indexOf(c.decided_by) < 0) seen.push(c.decided_by); });
+    return seen.map((w) => {
+      if (w === "human") return '<span class="pill pill-human">You check</span>';
+      if (w === "ai") return '<span class="pill pill-human">AI</span>';
+      return '<span class="pill pill-neutral">Code</span>';
+    }).join("");
+  }
+
+  function pillsHtml(p) {
+    let h = "";
+    if (p.is_priority) h += '<span class="pill pill-priority">Priority</span>';
+    if (p.source === "suggested") h += '<span class="pill pill-human has-icon">' + icon("sparkles") + "Suggested</span>";
+    return h + kindChips(p);
+  }
+
+  function pairCardHtml(p, idx, animate) {
     const ed = state.editors.get("e-" + p.id);
-    if (ed) return editorHtml(ed);
-    const pills = [];
-    if (p.source === "suggested") pills.push('<span class="pill pill-neutral">' + icon("sparkles") + "Suggested</span>");
-    if (p.is_priority) pills.push('<span class="pill pill-priority">' + icon("flag") + "Priority</span>");
-    pills.push(p.approved
-      ? '<span class="pill pill-pass">' + icon("check") + "Approved</span>"
-      : '<span class="pill pill-neutral">' + icon("circle-dashed") + "Not approved yet</span>");
+    if (ed) return "<li>" + editorHtml(ed) + "</li>";
+    const isNew = p.id === newPairId;
     const checks = (p.checks || []).map((c) =>
       '<li class="chk"><span class="pill pill-neutral who">' + esc(whoLabel(c.decided_by)) + "</span><span>" + esc(checkText(c)) + "</span></li>").join("");
+    const liCls = animate && !isNew ? ' class="enter" style="--i:' + idx + '"' : "";
     return (
-      '<article class="card pair' + (p.id === newPairId ? " is-new" : "") + '" data-pair="' + esc(p.id) + '">' +
-        '<div class="pair-top row">' +
+      "<li" + liCls + ">" +
+      '<article class="card pair' + (isNew ? " is-new" : "") + '" data-pair="' + esc(p.id) + '">' +
+        '<div class="pair-top">' +
           '<span class="pair-num">#' + esc(p.position) + "</span>" +
-          '<div class="row pair-pills">' + pills.join("") + "</div>" +
-          '<span class="spacer"></span>' +
-          '<button class="btn btn-ghost btn-sm" type="button" data-act="edit" aria-label="Edit pair ' + esc(p.position) + '">' + icon("pencil") + "Edit</button>" +
+          '<div class="pair-pills">' + pillsHtml(p) + "</div>" +
+          '<div class="pair-actions">' +
+            '<label class="switch"><input type="checkbox" role="switch" data-act="approve"' + (p.approved ? " checked" : "") + '>' +
+              '<span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span><span class="switch-label">Approved</span></label>' +
+            '<button class="icon-btn toggle" type="button" data-act="priority" aria-pressed="' + (p.is_priority ? "true" : "false") +
+              '" aria-label="Priority" title="Mark as priority">' + icon("star") + "</button>" +
+            '<button class="icon-btn" type="button" data-act="edit" aria-label="Edit pair ' + esc(p.position) + '" title="Edit">' + icon("pencil") + "</button>" +
+          "</div>" +
         "</div>" +
-        '<div class="two-col pair-text">' +
-          '<div><div class="k">User does</div><p>' + esc(p.user_does) + "</p></div>" +
-          '<div><div class="k">Good result</div><p>' + esc(p.good_result) + "</p></div>" +
+        '<div class="pair-trays">' +
+          '<div class="tray"><span class="tray-label">User does</span><p>' + esc(p.user_does) + "</p></div>" +
+          '<div class="tray"><span class="tray-label">Good result</span><p>' + esc(p.good_result) + "</p></div>" +
         "</div>" +
-        '<div class="pair-checks"><div class="k">Checks</div>' +
+        '<div class="pair-checks"><span class="tray-label">Checks</span>' +
           (checks ? '<ul class="check-list">' + checks + "</ul>" : '<p class="small muted">No checks yet.</p>') +
           '<p class="small muted pair-request">' + esc(requestText(p)) + "</p>" +
         "</div>" +
-        '<div class="pair-foot row">' +
-          '<label class="checkbox"><input type="checkbox" data-act="approve"' + (p.approved ? " checked" : "") + "> <span>Approved</span></label>" +
-          '<button class="btn btn-secondary btn-sm toggle" type="button" data-act="priority" aria-pressed="' + (p.is_priority ? "true" : "false") + '">' +
-            icon("flag") + "Priority</button>" +
-        "</div>" +
-      "</article>"
+      "</article></li>"
     );
   }
 
-  function renderList() {
+  function filteredPairs() {
+    const all = sortedPairs();
+    if (state.filter === "priority") return all.filter((p) => p.is_priority);
+    if (state.filter === "suggested") return all.filter((p) => p.source === "suggested");
+    return all;
+  }
+
+  function filterChipsHtml() {
+    const all = state.pairs.length;
+    const pri = state.pairs.filter((p) => p.is_priority).length;
+    const sug = state.pairs.filter((p) => p.source === "suggested").length;
+    const chip = (key, label, n) =>
+      '<button class="segmented-btn" type="button" data-filter="' + key + '" aria-pressed="' + (state.filter === key ? "true" : "false") + '">' +
+      label + " (" + n + ")</button>";
+    return '<div class="segmented filter-chips" role="group" aria-label="Show">' + chip("all", "All", all) + chip("priority", "Priority", pri) + chip("suggested", "Suggested", sug) + "</div>";
+  }
+
+  function renderList(animate) {
     const sec = document.getElementById("sec-list");
     if (!sec) return;
     const c = counts();
     const anyPriority = state.pairs.some((p) => p.is_priority);
+    if (state.filter === "priority" && !anyPriority) state.filter = "all";
+    if (state.filter === "suggested" && !state.pairs.some((p) => p.source === "suggested")) state.filter = "all";
     const head =
       '<div class="list-head">' +
-        '<h2 class="section-title" id="list-title">Your golden pairs</h2>' +
-        (c.total
-          ? '<span class="muted small" id="counter">' + (c.total <= GOAL ? c.total + " of " + GOAL + " pairs" : c.total + " pairs") + " · " + c.approved + " approved</span>"
-          : "") +
+        '<h2 class="section-title" id="list-title">Your golden pairs' +
+          (c.total ? '<span class="count" id="counter">(' + (c.total <= GOAL ? c.total + " of " + GOAL : c.total) + ")</span>" : "") + "</h2>" +
+        (c.total > 1 ? filterChipsHtml() : "") +
       "</div>" +
       (anyPriority && c.total > 1 ? '<p class="small muted order-note">Priority pairs are listed first.</p>' : "");
     let body;
     if (!c.total) {
-      body = '<div class="empty">' + icon("list-checks") + '<p class="empty-title">No golden pairs yet.</p><p class="muted">Write your first one above.</p></div>';
+      body = '<div class="card empty">' + '<span class="empty-icon">' + icon("list-checks") + "</span>" +
+        '<p class="empty-title">No pairs yet</p><p class="muted">Write your first one above.</p></div>';
     } else {
-      body = '<div class="stack pair-list">' + sortedPairs().map(pairCardHtml).join("") + "</div>";
+      const list = filteredPairs();
+      body = list.length
+        ? '<ul class="pair-list">' + list.map((p, i) => pairCardHtml(p, i + 1, animate)).join("") + "</ul>"
+        : '<p class="filter-empty">No pairs match this filter.</p>';
     }
     sec.innerHTML = head + body;
     icons();
     newPairId = null;
+    renderCount();
+  }
+
+  // Keep counts, filter chips and the run bar in step after a toggle (without re-drawing the cards).
+  function refreshMeta() {
+    renderCount();
+    renderRun();
+    const chips = document.querySelector(".filter-chips");
+    if (chips) chips.outerHTML = filterChipsHtml();
   }
 
   async function togglePair(id, field, value, focusAct) {
@@ -659,16 +748,29 @@
     if (!p) return;
     const old = p[field];
     p[field] = value;
-    renderList();
-    renderRun();
-    restoreFocus(id, focusAct);
+    const card = () => Array.prototype.find.call(document.querySelectorAll("[data-pair]"), (n) => n.dataset.pair === String(id));
+    if (field === "approved") {
+      refreshMeta();
+    } else {
+      // priority: flip the star at once, then re-sort after the 220ms feedback
+      const star = card() && card().querySelector('[data-act="priority"]');
+      if (star) star.setAttribute("aria-pressed", value ? "true" : "false");
+      refreshMeta();
+    }
     try {
       await EC.api("PATCH", "/api/pairs/" + encodeURIComponent(id), { [field]: value });
+      if (field === "is_priority") { renderList(false); restoreFocus(id, focusAct); }
     } catch (e) {
       p[field] = old;
-      renderList();
-      renderRun();
-      restoreFocus(id, focusAct);
+      if (field === "approved") {
+        const sw = card() && card().querySelector('[data-act="approve"]');
+        if (sw) sw.checked = !!old;
+        refreshMeta();
+      } else {
+        renderList(false);
+        renderRun();
+        restoreFocus(id, focusAct);
+      }
       EC.toast(errMsg(e, "We couldn't save that change. Please try again."), "error");
     }
   }
@@ -692,14 +794,18 @@
         ? "1 pair isn’t approved, so it won’t run."
         : c.notApproved + " pairs aren’t approved, so they won’t run.";
     }
+    const title = can ? c.approved + (c.approved === 1 ? " pair ready" : " pairs ready") : "No pairs ready yet";
+    const busy = sec.querySelector("#run-btn[aria-busy='true']");
+    if (busy) return; // never rebuild a button that is mid-click
     sec.innerHTML =
-      '<div class="card run-bar">' +
-        '<button class="btn btn-primary" type="button" data-act="run-all" id="run-btn"' + (can ? "" : " disabled") +
-          (can ? "" : ' aria-describedby="run-note"') + ">" + icon("play") + "Run all</button>" +
+      '<div class="run-dock">' +
         '<div class="run-text">' +
+          "<strong>" + esc(title) + "</strong>" +
           '<p class="run-help">Tests every approved pair on a phone and a laptop. Takes about 10–30 seconds per pair.</p>' +
-          (note ? '<p class="small run-note' + (can ? " muted" : "") + '" id="run-note">' + esc(note) + "</p>" : "") +
+          (note ? '<p class="run-note" id="run-note">' + esc(note) + "</p>" : "") +
         "</div>" +
+        '<button class="btn btn-primary" type="button" data-act="run-all" id="run-btn"' + (can ? "" : " disabled") +
+          (can ? "" : ' aria-describedby="run-note"') + ">" + icon("play") + "Run all approved pairs" + (can ? " (" + c.approved + ")" : "") + "</button>" +
       "</div>";
     icons();
   }
@@ -729,6 +835,8 @@
   page.addEventListener("click", (ev) => {
     const mic = ev.target.closest("[data-mic]");
     if (mic) { toggleVoice(mic.dataset.mic); return; }
+    const fl = ev.target.closest("[data-filter]");
+    if (fl) { state.filter = fl.dataset.filter; renderList(false); return; }
     const t = ev.target.closest("[data-act]");
     if (!t) return;
     const act = t.dataset.act;
@@ -830,7 +938,7 @@
   // ---------- Top bar ----------
   (function topbar() {
     const s = EC.getSession();
-    const who = document.getElementById("who");
+    const who = document.getElementById("user-email");
     if (who && s && s.user && s.user.email) who.textContent = s.user.email;
     document.getElementById("logout").addEventListener("click", () => EC.logout());
   })();
@@ -838,15 +946,28 @@
   // ---------- Load ----------
   function renderNotFound(msg) {
     page.innerHTML =
-      '<div class="empty">' + icon("search-x") +
-        '<p class="empty-title">' + esc(msg) + "</p>" +
-        '<p><a class="btn btn-secondary" href="/home.html">Back to my sites</a></p>' +
+      '<div class="card empty enter">' +
+        '<span class="empty-icon">' + icon("search-x") + "</span>" +
+        '<h2 class="empty-title">' + esc(msg) + "</h2>" +
+        '<a class="btn btn-secondary" href="/home.html">Back to My projects</a>' +
       "</div>";
     icons();
   }
 
+  function renderLoadError(e) {
+    page.innerHTML =
+      '<div class="banner banner-error enter" role="alert"><span class="banner-icon">' + icon("circle-alert") + "</span>" +
+      '<div class="banner-body"><span>' + esc(errMsg(e, "We couldn’t load this project.")) + "</span></div>" +
+      '<button class="btn btn-secondary btn-sm" id="retry" type="button">Try again</button></div>';
+    icons();
+    document.getElementById("retry").addEventListener("click", () => {
+      page.innerHTML = '<div class="stack-lg" aria-busy="true"><div class="skeleton" style="height:120px;border-radius:24px"></div><div class="skeleton skeleton-card" style="height:320px"></div></div>';
+      load();
+    });
+  }
+
   async function load() {
-    if (!projectId) { renderNotFound("We couldn’t find this site."); return; }
+    if (!projectId) { renderNotFound("We couldn’t find this project."); return; }
     try {
       const data = await EC.api("GET", "/api/projects/" + encodeURIComponent(projectId));
       state.project = data.project;
@@ -854,12 +975,8 @@
       state.runs = data.runs || [];
       renderPage();
     } catch (e) {
-      if (e.status === 404) renderNotFound("We couldn’t find this site.");
-      else {
-        page.innerHTML =
-          '<div class="banner banner-error" role="alert">' + icon("triangle-alert") + "<span>" + esc(errMsg(e, "We couldn’t load this site.")) + "</span></div>";
-        icons();
-      }
+      if (e.status === 404) renderNotFound("We couldn’t find this project.");
+      else renderLoadError(e);
     }
   }
 

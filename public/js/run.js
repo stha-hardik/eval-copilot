@@ -1,5 +1,5 @@
 // Results screen: /run.html?id=<run id>[&start=1]
-// Live mode (start=1) tests one pair at a time and fills the table as answers arrive.
+// Live mode (start=1) tests one pair at a time and fills the results feed as answers arrive.
 (function () {
   "use strict";
 
@@ -23,6 +23,8 @@
     draft: null,            // proposed pair from "Turn into a check"
     note: "",
     compareDone: false,
+    prog: null,             // live progress {text, done, total, busy}
+    changedShown: false,    // the "Good now?" panel animates in once
   };
 
   const $ = (id) => document.getElementById(id);
@@ -39,18 +41,16 @@
   function hostOf(url) { try { return new URL(url).host; } catch (err) { return url || ""; } }
   function num(p) { return p == null ? "#" : "#" + p; }
 
-  function outcomePill(o) {
-    if (o === "pass") return '<span class="pill pill-pass">' + ic("check") + "Pass</span>";
-    if (o === "fail") return '<span class="pill pill-fail">' + ic("x") + "Fail</span>";
-    if (o === "cant_test") return '<span class="pill pill-cant">' + ic("ban") + "Can’t test</span>";
-    return '<span class="pill pill-neutral">' + ic("minus") + "Not tested</span>";
+  function outcomePill(o, pop) {
+    const p = pop ? " pop" : "";
+    if (o === "pass") return '<span class="pill pill-pass' + p + '">Pass</span>';
+    if (o === "fail") return '<span class="pill pill-fail' + p + '">Fail</span>';
+    if (o === "cant_test") return '<span class="pill pill-cant' + p + '">Can’t test</span>';
+    return '<span class="pill pill-neutral' + p + '">Not tested</span>';
   }
   function deviceLabel(d) { return d === "phone" ? "Phone" : "Laptop"; }
   function deviceIcon(d) { return d === "phone" ? "smartphone" : "laptop"; }
-  function deviceHtml(d) {
-    return '<span class="device">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>";
-  }
-
+  
   // ---------- plain-words check text ----------
   function ruleText(c) {
     const x = c.expected == null ? "" : String(c.expected);
@@ -131,60 +131,120 @@
   }
 
   // ---------- header ----------
+  function relTime(iso) {
+    if (!iso) return "";
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 45) return "just now";
+    const m = Math.round(s / 60);
+    if (m < 60) return m + " min ago";
+    const h = Math.round(m / 60);
+    if (h < 24) return h + " " + plural(h, "hour", "hours") + " ago";
+    return EC.fmtDate(iso);
+  }
   function renderHead() {
     const run = S.run, p = S.project;
     const c = counts();
     const kind = run.kind === "changed" ? "Re-run of changed pairs" : "Full run";
-    const summary = S.rows.length
-      ? '<strong>' + c.pass + "</strong> passed · <strong>" + c.fail + "</strong> failed · <strong>" + c.cant + "</strong> can’t test"
-      : "No results yet";
+    const when = relTime(run.started_at);
+    const eyebrow = e(kind) + (when ? " · Started " + e(when) : "");
+    const running = !S.finished && S.prog && S.prog.text && S.prog.busy !== false;
+    let title, extra = "";
+    if (S.finished && S.rows.length) {
+      title = "Run " + e(run.run_number) + ' <span class="head-project">· ' + e(c.pass) + " of " + e(S.rows.length) + " passed</span>";
+      extra = '<div class="head-pills" aria-live="polite">' +
+        '<span class="pill pill-pass">' + c.pass + " pass</span>" +
+        '<span class="pill pill-fail">' + c.fail + " fail</span>" +
+        '<span class="pill pill-cant">' + c.cant + " can’t test</span></div>" +
+        '<p class="head-note">' + e(p.name) + ". Each pair is tested twice, once as a phone and once as a laptop, so numbers count both.</p>";
+    } else {
+      title = "Run " + e(run.run_number) + ' <span class="head-project">· ' + e(p.name) + "</span>";
+      if (S.finished) extra = '<p class="head-note">No results yet.</p>';
+    }
     setHtml("head",
-      '<div class="page-head">' +
-        "<div>" +
-          '<a class="back-link" href="/project.html?id=' + encodeURIComponent(p.id) + '">' + ic("arrow-left") + "Back to " + e(p.name) + "</a>" +
-          "<h1>Run " + e(run.run_number) + "</h1>" +
-          '<p class="run-kind">' + e(kind) + " · " + e(EC.fmtDate(run.started_at)) + "</p>" +
-          '<p class="run-summary" aria-live="polite">' + summary + "</p>" +
-          (S.rows.length ? '<p class="small muted">Each pair is tested twice, once as a phone and once as a laptop, so numbers count both.</p>' : "") +
-        "</div>" +
-      "</div>");
+      '<div class="page-head"><div>' +
+        '<span class="eyebrow">' + eyebrow + "</span>" +
+        '<div class="head-line"><h1>' + title + "</h1>" +
+        (running ? '<span class="live-status" aria-live="polite"><span class="spinner" aria-hidden="true"></span>' + e(S.prog.text) + "</span>" : "") + "</div>" +
+        extra +
+      "</div></div>");
+    const sort = $("results-sort");
+    if (sort) sort.textContent = S.finished ? "Priority first, then fails" : "In the order they run";
   }
 
-  // ---------- "Did it work?" ----------
+  // ---------- "Good now?" panel ----------
   function renderChanged() {
     const el = $("changed-panel");
     if (!(S.run.kind === "changed" && S.changed && S.changed.length && S.finished)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
-    const items = S.changed.map((c) => {
+    const first = !S.changedShown;
+    S.changedShown = true;
+    const total = S.changed.length;
+    const yesN = S.changed.filter((c) => c.good_now === "yes").length;
+    const noN = total - yesN;
+    const items = S.changed.map((c, i) => {
       const yes = c.good_now === "yes";
-      return '<li class="changed-item">' +
-        '<div class="changed-info"><p class="changed-title">' + e(num(c.position)) + " " + e(c.user_does) + "</p>" +
-        '<p class="small muted">What you changed: ' + e(c.note || "Ticked as changed") + "</p></div>" +
+      return '<li class="card changed-card' + (first ? " enter" : "") + '"' + (first ? ' style="--i:' + i + '"' : "") + ">" +
+        '<div class="changed-info"><h3 class="changed-title">' + e(num(c.position)) + " " + e(c.user_does) + "</h3>" +
+        '<div class="tray"><strong>You changed:</strong>' + e(c.note || "Ticked as changed") + "</div>" +
         '<div class="changed-out">' +
-          '<span class="out"><span class="small muted">Phone</span>' + outcomePill(c.phone) + "</span>" +
-          '<span class="out"><span class="small muted">Laptop</span>' + outcomePill(c.laptop) + "</span>" +
-        "</div>" +
-        '<div class="changed-answer"><span class="pill answer ' + (yes ? "pill-pass" : "pill-fail") + '">' +
-          ic(yes ? "check" : "x") + "Good now? " + (yes ? "Yes" : "No") + "</span></div>" +
+          '<span class="out">' + ic("smartphone") + "Phone: " + outcomePill(c.phone) + "</span>" +
+          '<span class="out">' + ic("laptop") + "Laptop: " + outcomePill(c.laptop) + "</span>" +
+        "</div></div>" +
+        '<div class="changed-answer"><span class="good-now ' + (yes ? "is-yes" : "is-no") + (first ? " pop" : "") + '">' +
+          ic(yes ? "circle-check" : "circle-x") + "Good now? " + (yes ? "Yes" : "No") + "</span></div>" +
       "</li>";
     }).join("");
-    el.innerHTML = '<div class="card stack"><h2 class="section-title" id="changed-title">Did it work?</h2><ul class="changed-list">' + items + "</ul></div>";
+    el.innerHTML =
+      '<div class="changed-head"><div><span class="eyebrow">What changed</span>' +
+      '<h2 id="changed-title">Run ' + e(S.run.run_number) + " · re-ran " + total + " " + plural(total, "pair", "pairs") + "</h2>" +
+      "<p>Here is how each pair did after your change.</p></div>" +
+      '<div class="row"><span class="pill pill-pass">' + yesN + " good now</span><span class=\"pill " + (noN ? "pill-fail" : "pill-neutral") + '">' + noN + " not yet</span></div></div>" +
+      '<ul class="changed-list">' + items + "</ul>";
     icons();
   }
 
-  // ---------- live progress ----------
-  function showProgress(text, done, total, busy) {
+  // ---------- live progress (the head track draws forward as each pair finishes) ----------
+  function progressMessage(html) {
     const el = $("live-progress");
     el.hidden = false;
-    const pct = total ? Math.min(1, done / total) : 0;
-    el.innerHTML =
-      '<div class="progress-wrap" aria-live="polite">' +
-        '<p class="progress-text">' + (busy === false ? "" : '<span class="spinner" aria-hidden="true"></span>') + e(text) + "</p>" +
-        '<div class="progress" role="progressbar" aria-label="Testing progress" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + done + '">' +
-          '<span style="transform:scaleX(' + pct + ')"></span></div>' +
-      "</div>";
+    el.dataset.mode = "msg";
+    el.innerHTML = html;
+    icons();
   }
-  function hideProgress() { const el = $("live-progress"); el.hidden = true; el.innerHTML = ""; }
+  function showProgress(text, done, total, busy) {
+    const el = $("live-progress");
+    S.prog = { text: text, done: done, total: total, busy: busy };
+    renderHead();
+    el.hidden = false;
+    const pct = total ? Math.min(1, done / total) : 0;
+    let fill = el.dataset.mode === "bar" ? el.querySelector(".progress-fill") : null;
+    if (!fill) {
+      el.dataset.mode = "bar";
+      el.innerHTML =
+        '<div class="run-progress">' +
+          '<div class="progress" role="progressbar" aria-label="Testing progress" aria-valuemin="0">' +
+            '<div class="progress-fill" style="--p:0"></div></div>' +
+          '<div class="run-progress-meta"><span class="label-caps" id="pg-done"></span><span class="label-caps" id="pg-pct"></span></div>' +
+        "</div>";
+      fill = el.querySelector(".progress-fill");
+      void fill.offsetWidth; // so the first fill animates from empty
+    }
+    el.querySelector(".progress").setAttribute("aria-valuemax", String(total));
+    el.querySelector(".progress").setAttribute("aria-valuenow", String(done));
+    fill.style.setProperty("--p", String(pct));
+    const d = $("pg-done"), pc = $("pg-pct");
+    if (d) d.textContent = done + " of " + total + " " + plural(total, "pair", "pairs") + " done";
+    if (pc) pc.textContent = Math.round(pct * 100) + "% done";
+  }
+  function hideProgress() {
+    const el = $("live-progress");
+    S.prog = null;
+    el.hidden = true;
+    el.innerHTML = "";
+    el.dataset.mode = "";
+  }
 
   // ---------- manual banner ----------
   function renderBanner() {
@@ -192,134 +252,127 @@
     if (!n) { setHtml("manual-banner", ""); return; }
     const site = S.project.site_url;
     setHtml("manual-banner",
-      '<div class="banner banner-info" role="status">' + ic("eye") +
-      "<div>" + n + " " + plural(n, "check needs", "checks need") + " your eyes. Open the site on your phone and laptop, then answer " + plural(n, "it", "them") + " below." +
+      '<div class="banner banner-info" role="status"><span class="banner-icon">' + ic("eye") + "</span>" +
+      '<div class="banner-body">' + n + " " + plural(n, "check needs", "checks need") + " your eyes. Open the site on your phone and laptop, then answer " + plural(n, "it", "them") + " below." +
       (site ? ' <a href="' + e(site) + '" target="_blank" rel="noopener">Open ' + e(hostOf(site)) + "</a>" : "") + "</div></div>");
   }
 
-  // ---------- results table ----------
+  // ---------- results feed ----------
   function checkLi(c, r) {
     const pending = isPending(c);
     let res = "";
     if (r) {
-      if (pending) res = '<span class="pill pill-human">' + ic("eye") + "Needs a look</span>";
-      else if (c.passed) res = '<span class="pill pill-pass">' + ic("check") + "Pass</span>";
-      else res = '<span class="pill pill-fail">' + ic("x") + "Fail</span>";
-    }
-    let extra = "";
-    if (r && pending && c.id != null) {
-      extra = '<div class="manual-actions">' +
-        '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="true">' + ic("check") + "Looks right</button>" +
-        '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="false">' + ic("x") + "Looks wrong</button></div>";
+      if (pending) res = '<span class="pill pill-human">Needs a look</span>';
+      else if (c.passed) res = '<span class="pill pill-pass">Pass</span>';
+      else res = '<span class="pill pill-fail">Fail</span>';
     }
     return '<li class="check-item">' +
       '<div class="check-line"><span class="pill pill-neutral by" title="Who decided">' + e(decidedBy(c)) + "</span>" +
       '<span class="check-what">' + e(ruleText(c)) + "</span>" + res + "</div>" +
-      (r && c.why ? '<p class="check-why small muted">' + e(c.why) + "</p>" : "") + extra + "</li>";
+      (r && c.why ? '<p class="check-why">' + e(c.why) + "</p>" : "") + "</li>";
   }
 
-  function leadCells(item, span) {
-    return '<td class="c-num" data-label="#" rowspan="' + span + '"><span class="num">' + e(num(item.position)) + "</span>" +
-      (item.is_priority ? ' <span class="pill pill-priority">' + ic("flag") + "Priority</span>" : "") + "</td>" +
-      '<td class="c-does" data-label="What the user does" rowspan="' + span + '">' + e(item.user_does) + "</td>";
-  }
-  function dupCell(item) {
-    return '<td class="dup"><span class="num">' + e(num(item.position)) + "</span> " + e(item.user_does) +
-      (item.is_priority ? ' <span class="pill pill-priority">' + ic("flag") + "Priority</span>" : "") + "</td>";
+  function deviceChip(d) { return '<span class="dev-chip">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>"; }
+
+  // one raised row-card; o = {pill, showed, side, checks, rid, cls, enter, i}
+  function cardHtml(item, d, o) {
+    return '<article class="result-card' + (o.cls ? " " + o.cls : "") + (o.enter ? " enter" : "") + '"' +
+      (o.rid != null ? ' data-rid="' + e(o.rid) + '"' : "") + (o.enter ? ' style="--i:' + (o.i || 0) + '"' : "") + (o.busy ? ' aria-busy="true"' : "") + ">" +
+      '<span class="rc-num" title="Pair number">' + e(num(item.position)) + "</span>" +
+      '<div class="rc-body"><div class="rc-top"><h3 class="rc-title">' + e(item.user_does) + "</h3>" +
+        (item.is_priority ? '<span class="pill pill-priority">Priority</span>' : "") +
+        deviceChip(d) + o.pill + "</div>" + o.showed + "</div>" +
+      '<div class="rc-side">' + (o.side || "") + "</div>" +
+      (o.checks || "") + "</article>";
   }
 
-  function pairHtml(item) {
-    const devs = ["phone", "laptop"];
-    let html = "";
-    if (item.state !== "done") {
-      devs.forEach((d, i) => {
-        let result, showed = '<span class="muted">—</span>', why = '<span class="muted">—</span>';
-        if (item.state === "testing") result = '<span class="status-wait"><span class="spinner" aria-hidden="true"></span>Testing…</span>';
-        else if (item.state === "failed") {
-          result = '<span class="pill pill-cant">' + ic("ban") + "Couldn’t finish</span>";
-          why = '<span>Couldn’t finish — try again.</span> <button type="button" class="btn btn-secondary btn-sm" data-action="retry" data-pair="' + e(item.pair_id) + '">' + ic("refresh-cw") + "Try again</button>";
-        } else result = '<span class="status-wait muted">' + ic("clock") + "Waiting…</span>";
-        html += '<tr class="res-row is-pending">' + (i === 0 ? leadCells(item, 2) : dupCell(item)) +
-          '<td data-label="Device">' + deviceHtml(d) + "</td>" +
-          '<td data-label="Result">' + result + "</td>" +
-          '<td data-label="What the site showed"' + (item.state === "failed" ? "" : ' class="is-empty"') + ">" + showed + "</td>" +
-          '<td data-label="Why"' + (item.state === "failed" ? "" : ' class="is-empty"') + ">" + why + "</td></tr>";
-      });
-      return html;
+  function sideHtml(r) {
+    const pend = pendingManual(r);
+    if (pend.length) {
+      return pend.map((c) =>
+        '<div class="rc-q"><span class="label-caps">Question</span><p>' + e(c.expected || ruleText(c)) + "</p>" +
+        (c.id != null
+          ? '<div class="manual-actions">' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="true">' + ic("check") + "Looks right</button>" +
+            '<button type="button" class="btn btn-secondary btn-sm" data-action="answer" data-id="' + e(c.id) + '" data-val="false">' + ic("x") + "Looks wrong</button></div>"
+          : "") + "</div>").join("");
     }
-    const rs = devs.map((d) => item.rows[d] || null);
-    const span = rs.reduce((n, r) => n + 1 + (r && r.checks && r.checks.length ? 1 : 0), 0);
-    rs.forEach((r, i) => {
-      const d = devs[i];
-      const lead = i === 0 ? leadCells(item, span) : dupCell(item);
-      if (!r) {
-        html += '<tr class="res-row">' + lead + '<td data-label="Device">' + deviceHtml(d) + '</td><td colspan="3" class="muted">No result for the ' + d + ".</td></tr>";
-        return;
-      }
+    const why = whyText(r);
+    if (why) return '<span class="label-caps">Why</span><p class="rc-why' + (r.outcome === "fail" ? " is-fail" : r.outcome === "cant_test" ? " is-cant" : "") + '">' + e(why) + "</p>";
+    const total = (r.checks || []).length;
+    if (r.outcome === "pass" && total) {
+      const ok = r.checks.filter((c) => c.passed === true).length;
+      return '<span class="label-caps">Checks</span><p class="rc-why">' + ok + " of " + total + " " + plural(total, "check", "checks") + " passed.</p>";
+    }
+    return "";
+  }
+
+  function checksHtml(r) {
+    if (!(r.checks && r.checks.length)) return "";
+    const pend = pendingManual(r).length;
+    const isOpen = S.detailsOpen[r.result_id] !== undefined ? S.detailsOpen[r.result_id] : false;
+    return '<div class="rc-checks"><details class="checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
+      "<summary>" + ic("chevron-right") + "Checks (" + r.checks.length + ")" +
+      (pend ? ' <span class="pill pill-human">' + pend + " to look at</span>" : "") + "</summary>" +
+      '<ul class="check-list">' + r.checks.map((c) => checkLi(c, r)).join("") + "</ul></details></div>";
+  }
+
+  function groupHtml(item, animate, idx, pop) {
+    const devs = ["phone", "laptop"];
+    if (item.state !== "done") {
+      return devs.map((d) => {
+        const failed = item.state === "failed";
+        const pill = failed ? '<span class="pill pill-cant">Couldn’t finish</span>'
+          : item.state === "testing" ? '<span class="pill pill-human">Running…</span>'
+          : '<span class="pill pill-neutral">Waiting…</span>';
+        const showed = failed ? '<p class="rc-showed">Couldn’t finish. Try again.</p>'
+          : '<div class="skeleton rc-skel" style="width:70%" aria-hidden="true"></div>';
+        const side = failed
+          ? '<button type="button" class="btn btn-secondary btn-sm" data-action="retry" data-pair="' + e(item.pair_id) + '">' + ic("refresh-cw") + "Try again</button>"
+          : '<span class="label-caps">Why</span><div class="skeleton rc-skel" style="width:85%" aria-hidden="true"></div>';
+        return cardHtml(item, d, { cls: "is-pending", pill: pill, showed: showed, side: side, busy: !failed });
+      }).join("");
+    }
+    return devs.map((d) => {
+      const r = item.rows[d] || null;
+      if (!r) return cardHtml(item, d, { pill: outcomePill(null), showed: '<p class="rc-showed">No result for the ' + d + ".</p>", enter: animate, i: idx });
       const long = r.what_site_said || "";
       const open = !!S.expanded[r.result_id];
-      const showed = long
-        ? '<div class="showed' + (open ? "" : " clamp3") + '">' + e(long) + "</div>" +
+      const showed = '<div class="rc-showed-wrap">' + (long
+        ? '<div class="rc-showed showed' + (open ? "" : " clamp3") + '"><span class="rc-showed-label">The site showed:</span> ' + e(long) + "</div>" +
           '<button type="button" class="link-btn" data-action="more"' + (open ? "" : " hidden") + ">" + (open ? "Less" : "More") + "</button>"
-        : '<span class="muted">Nothing came back.</span>';
-      const status = r.status_code != null ? '<div class="status-code small muted">Status ' + e(r.status_code) + "</div>" : "";
-      const why = whyText(r);
-      html += '<tr class="res-row' + (r.checks && r.checks.length ? " has-checks" : "") + '" data-rid="' + e(r.result_id) + '">' + lead +
-        '<td data-label="Device">' + deviceHtml(d) + "</td>" +
-        '<td data-label="Result">' + outcomePill(r.outcome) + "</td>" +
-        '<td data-label="What the site showed">' + showed + status + "</td>" +
-        '<td data-label="Why">' + (why ? e(why) : '<span class="muted">—</span>') + "</td></tr>";
-      if (r.checks && r.checks.length) {
-        const pend = pendingManual(r).length;
-        const isOpen = S.detailsOpen[r.result_id] !== undefined ? S.detailsOpen[r.result_id] : pend > 0;
-        html += '<tr class="checks-tr"><td class="checks-cell" colspan="4">' +
-          '<details class="checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
-          "<summary>" + ic("chevron-right") + "Checks (" + r.checks.length + ")" +
-          (pend ? ' <span class="pill pill-human">' + pend + " to look at</span>" : "") + "</summary>" +
-          '<ul class="check-list">' + r.checks.map((c) => checkLi(c, r)).join("") + "</ul></details></td></tr>";
-      }
-    });
-    return html;
+        : '<div class="rc-showed"><span class="rc-showed-label">The site showed:</span> nothing came back.</div>') +
+        (r.status_code != null ? '<div class="status-code">Status ' + e(r.status_code) + "</div>" : "") + "</div>";
+      return cardHtml(item, d, {
+        rid: r.result_id, pill: outcomePill(r.outcome, pop), showed: showed, side: sideHtml(r), checks: checksHtml(r),
+        enter: animate, i: idx,
+      });
+    }).join("");
   }
 
-  function tableShell() {
-    return '<div class="table-wrap results-wrap"><table class="table stack-mobile results" id="results-table">' +
-      "<thead><tr>" +
-      '<th class="col-num">#</th><th class="col-does">What the user does</th><th class="col-dev">Device</th>' +
-      '<th class="col-res">Result</th><th class="col-showed">What the site showed</th><th class="col-why">Why</th>' +
-      "</tr></thead></table></div>";
-  }
-
-  function renderTable() {
+  function renderTable(animate) {
     const items = buildItems();
-    const area = $("table-area");
+    const area = $("feed-area");
     if (!items.length) {
       area.innerHTML = '<div class="empty">' + ic("list-checks") + '<p class="empty-title">No results yet.</p><p>Results show up here as each pair is tested.</p></div>';
       icons();
       return;
     }
-    area.innerHTML = tableShell();
-    const table = $("results-table");
-    items.forEach((it) => {
-      const tb = document.createElement("tbody");
-      tb.id = "pair-" + it.pair_id;
-      tb.dataset.pair = it.pair_id;
-      tb.innerHTML = pairHtml(it);
-      table.appendChild(tb);
-    });
+    area.innerHTML = '<ol class="feed" id="feed">' + items.map((it, i) =>
+      '<li class="pair-group" id="pair-' + e(it.pair_id) + '" data-pair="' + e(it.pair_id) + '">' + groupHtml(it, !!animate, i, false) + "</li>").join("") + "</ol>";
     icons();
-    measureClamps(table);
+    measureClamps(area);
   }
 
-  function renderPair(pid) {
-    const tb = document.getElementById("pair-" + pid);
-    if (!tb) { renderTable(); return; }
+  function renderPair(pid, animate) {
+    const li = document.getElementById("pair-" + pid);
+    if (!li) { renderTable(false); return; }
     const items = buildItems();
     const it = items.find((x) => String(x.pair_id) === String(pid));
     if (!it) return;
-    tb.innerHTML = pairHtml(it);
+    li.innerHTML = groupHtml(it, !!animate, 0, !!animate);
     icons();
-    measureClamps(tb);
+    measureClamps(li);
   }
 
   function measureClamps(root) {
@@ -329,10 +382,10 @@
     });
   }
 
-  // ---------- key points ----------
+  // ---------- things to fix first ----------
   function renderPoints() {
     const sec = $("points-section");
-    let body;
+    let body, title = "Things to fix first", side = "";
     const fails = counts().fail;
     if (!S.finished) {
       body = '<div class="card"><p class="muted">Key points appear when the run finishes.</p></div>';
@@ -340,16 +393,24 @@
       body = '<div class="card"><div class="empty empty-success">' + ic("circle-check") +
         '<p class="empty-title">No fails in this run.</p><p>Nothing needs fixing first.</p></div></div>';
     } else if (!S.points.length) {
-      body = '<div class="card"><p class="muted">There are fails in the table above. Key points could not be written this time.</p></div>';
+      body = '<div class="card"><p class="muted">There are fails in the results above. Key points could not be written this time.</p></div>';
     } else {
-      body = '<ol class="points">' + S.points.slice().sort((a, b) => a.rank - b.rank).map((p) =>
-        '<li class="card point"><span class="rank" aria-hidden="true">' + e(p.rank) + "</span><div class=\"point-body\">" +
-        '<h3><span class="sr-only">Fix ' + e(p.rank) + ": </span>" + e(num(p.position)) + " " + e(p.user_does) + " · " + e(deviceLabel(p.device)) + "</h3>" +
-        '<p class="point-why">' + e(p.explanation) + "</p>" +
-        (p.what_site_said ? '<p class="small muted clamp3">What the site showed: ' + e(p.what_site_said) + "</p>" : "") +
-        "</div></li>").join("") + "</ol>";
+      const pts = S.points.slice().sort((a, b) => a.rank - b.rank);
+      title = pts.length + " " + plural(pts.length, "thing", "things") + " to fix first";
+      side = '<span class="label-caps">Most important first</span>';
+      body = '<ol class="points">' + pts.map((p) => {
+        const row = S.rows.find((r) => String(r.result_id) === String(p.result_id));
+        const oc = row ? row.outcome : "fail";
+        return '<li><article class="card point">' +
+          '<div class="point-top"><span class="rank-chip ' + (oc === "cant_test" ? "is-cant" : oc === "pass" ? "is-pass" : "") + '">' + e(num(p.position)) + "</span>" +
+          '<h3><span class="sr-only">Fix ' + e(p.rank) + ": </span>" + e(p.user_does) + "</h3></div>" +
+          '<div class="point-sub">' + deviceChip(p.device) + "</div>" +
+          (p.what_site_said ? '<div class="tray"><span class="label-caps">The site showed</span><p class="clamp4">' + e(p.what_site_said) + "</p></div>" : "") +
+          '<div class="point-fix"><span class="label-caps">' + ic("wrench") + "What to change</span>" +
+          '<p class="point-why">' + e(p.explanation) + "</p></div></article></li>";
+      }).join("") + "</ol>";
     }
-    sec.innerHTML = '<h2 class="section-title" id="points-title">What to fix first</h2>' + body;
+    sec.innerHTML = '<div class="section-head"><h2 class="section-title" id="points-title">' + e(title) + "</h2>" + side + "</div>" + body;
     icons();
   }
 
@@ -363,14 +424,14 @@
   function pickLabel(id, position, text, failing, isNew) {
     return '<label class="checkbox pick"><input type="checkbox" data-pick value="' + e(id) + '"' + (S.picks.has(String(id)) ? " checked" : "") + ">" +
       "<span><span class=\"num\">" + (isNew ? "New check" : e(num(position))) + "</span> " + e(text) +
-      (failing ? ' <span class="pill pill-fail">' + ic("x") + "Fail</span>" : "") + "</span></label>";
+      (failing ? ' <span class="pill pill-fail">Fail</span>' : "") + "</span></label>";
   }
   function draftHtml() {
     const d = S.draft;
     if (!d) return "";
     const req = (d.method || "GET") + " " + (d.request_url || "") + (d.request_body ? "  " + JSON.stringify(d.request_body) : "");
     return '<div class="draft" role="region" aria-label="Proposed check">' +
-      '<p class="label">Here is the check we would add</p>' +
+      '<span class="label-caps">Here is the check we would add</span>' +
       '<dl class="draft-list">' +
       "<div><dt>What the user does</dt><dd>" + e(d.user_does) + "</dd></div>" +
       "<div><dt>A good result has</dt><dd>" + e(d.good_result) + "</dd></div>" +
@@ -384,20 +445,20 @@
     const sec = $("rerun-section");
     if (!S.finished) { sec.hidden = true; return; }
     sec.hidden = false;
-    const failIds = new Set();
-    const list = pickItems().map((g) => { if (g.anyFail) failIds.add(g.pair_id); return pickLabel(g.pair_id, g.position, g.user_does, g.anyFail, false); });
+    const list = pickItems().map((g) => pickLabel(g.pair_id, g.position, g.user_does, g.anyFail, false));
     if (S.otherPair) list.unshift(pickLabel(S.otherPair.id, null, S.otherPair.user_does, false, true));
     sec.innerHTML = '<div class="card stack">' +
-      '<div><h2 class="section-title" id="rerun-title">Changed something on your site? Re-run just those pairs.</h2>' +
-      '<p class="muted small rerun-help">Tick the pairs you changed something for. Nothing is ticked for you.</p></div>' +
+      '<div class="rr-head"><span class="icon-tile">' + ic("refresh-cw") + "</span>" +
+      '<div><h2 class="section-title" id="rerun-title">Re-run what you changed</h2>' +
+      "<p>Changed something on your site? Tick the pairs you changed something for and we’ll re-run just those. Nothing is ticked for you.</p></div></div>" +
       '<fieldset class="pick-fieldset"><legend class="sr-only">Pairs to re-run</legend><div class="pick-list">' + list.join("") + "</div></fieldset>" +
-      '<div class="field"><label class="label" for="other-note">Other changes</label>' +
+      '<div class="field rr-field"><label class="label" for="other-note">Anything else you changed?</label>' +
       '<textarea class="input" id="other-note" rows="3" placeholder="e.g. I moved the Add to cart button above the photos">' + e(S.note) + "</textarea>" +
-      '<p class="hint">Anything else you changed? Describe it and we’ll turn it into a check.</p></div>' +
+      '<p class="hint">Describe it and we’ll turn it into a check.</p></div>' +
       '<div class="row"><button type="button" class="btn btn-secondary" id="tidy-btn" data-action="tidy"' + (S.note.trim() ? "" : " disabled") + ">" + ic("sparkles") + "Turn into a check</button></div>" +
       '<div id="draft-area" aria-live="polite">' + draftHtml() + "</div>" +
-      '<div class="row rerun-actions"><button type="button" class="btn btn-primary" id="rerun-btn" data-action="rerun" disabled>' + ic("refresh-cw") + "Re-run changed</button>" +
-      '<span class="muted small" id="rerun-count"></span></div></div>';
+      '<div class="row rerun-actions"><span class="muted small" id="rerun-count" aria-live="polite"></span>' +
+      '<button type="button" class="btn btn-primary" id="rerun-btn" data-action="rerun" disabled>' + ic("refresh-cw") + "Re-run changed</button></div></div>";
     icons();
     updateRerunBtn();
   }
@@ -407,7 +468,10 @@
     const n = S.picks.size;
     btn.disabled = n < 1;
     const c = $("rerun-count");
-    if (c) c.textContent = n ? n + " " + plural(n, "pair", "pairs") + " selected" : "Tick at least one pair, or add another change.";
+    if (c) {
+      c.textContent = n ? n + " " + plural(n, "pair", "pairs") + " selected"
+        : (S.note.trim() ? "Turn your note into a check first, or tick a pair." : "Tick at least one pair, or add another change.");
+    }
   }
 
   // ---------- compare ----------
@@ -415,35 +479,35 @@
     const sec = $("compare-section");
     if (!S.finished) { sec.hidden = true; return; }
     sec.hidden = false;
+    const head = '<div class="compare-intro"><span class="eyebrow">Before and after</span><h2 id="compare-title">Compare runs</h2></div>';
     const earlier = S.earlier.filter((r) => String(r.id) !== String(S.run.id)).sort((a, b) => b.run_number - a.run_number);
     if (!earlier.length) {
-      sec.innerHTML = '<h2 class="section-title" id="compare-title">Compare with an earlier run</h2>' +
-        '<div class="card"><p class="muted">This is your first run. Run again later to compare.</p></div>';
+      sec.innerHTML = head + '<div class="card"><p class="muted">This is your first run. Run again later to compare.</p></div>';
       return;
     }
     const before = earlier.filter((r) => r.run_number < S.run.run_number);
     const def = (before[0] || earlier[0]).id;
     const opts = earlier.map((r) =>
       '<option value="' + e(r.id) + '"' + (r.id === def ? " selected" : "") + ">Run " + e(r.run_number) + " · " + e(EC.fmtDate(r.started_at)) + " · " + e(r.passed) + " of " + e(r.total) + " passed</option>").join("");
-    sec.innerHTML = '<h2 class="section-title" id="compare-title">Compare with an earlier run</h2>' +
+    sec.innerHTML = head +
       '<div class="card stack">' +
-      '<div class="compare-form"><div class="field"><label class="label" for="compare-with">Earlier run</label><select class="input" id="compare-with">' + opts + "</select></div>" +
-      '<button type="button" class="btn btn-secondary" id="compare-btn" data-action="compare">' + ic("git-compare") + "Compare</button></div>" +
-      '<div id="compare-result" aria-live="polite"></div></div>';
+      '<div class="compare-form"><div class="field"><label class="label" for="compare-with">Compare with an earlier run</label><select class="input" id="compare-with">' + opts + "</select></div>" +
+      '<button type="button" class="btn btn-secondary" id="compare-btn" data-action="compare">' + ic("git-compare") + "Compare</button></div></div>" +
+      '<div id="compare-result" aria-live="polite"></div>';
     icons();
   }
 
   const VERDICT = {
-    fixed: ['<span class="pill pill-fixed">' + ic("check") + "Fixed</span>", 0],
-    broke: ['<span class="pill pill-broke">' + ic("x") + "Broke</span>", 0],
-    same: ['<span class="pill pill-same">' + ic("minus") + "Same</span>", 1],
+    fixed: '<span class="verdict is-fixed">' + ic("trending-up") + "Fixed</span>",
+    broke: '<span class="verdict is-broke">' + ic("triangle-alert") + "Broke</span>",
+    same: '<span class="verdict is-same">' + ic("minus") + "Same</span>",
   };
   async function doCompare(btn) {
     const sel = $("compare-with");
     if (!sel) return;
     const out = $("compare-result");
     const go = async () => {
-      out.innerHTML = '<div class="skeleton" style="height:56px"></div>';
+      out.innerHTML = '<div class="skeleton skeleton-card" style="height:84px"></div>';
       try {
         const d = await EC.api("GET", "/api/runs/" + encodeURIComponent(S.run.id) + "/compare?with=" + encodeURIComponent(sel.value));
         const rows = (d.rows || []).map((r) => Object.assign({}, r, { v: String(r.verdict || "same").toLowerCase() }));
@@ -451,17 +515,25 @@
         rows.forEach((r) => { n[r.v in n ? r.v : "same"]++; });
         rows.sort((a, b) => (a.v === "same" ? 1 : 0) - (b.v === "same" ? 1 : 0));
         const oldN = d.old_run ? d.old_run.run_number : "", newN = d.run ? d.run.run_number : S.run.run_number;
+        const oldWhen = d.old_run && d.old_run.started_at ? EC.fmtDate(d.old_run.started_at) : "";
         if (!rows.length) { out.innerHTML = '<p class="muted">Nothing to compare yet.</p>'; return; }
-        out.innerHTML = '<p class="compare-summary"><strong>' + n.fixed + "</strong> fixed · <strong>" + n.broke + "</strong> broke · <strong>" + n.same + "</strong> same</p>" +
-          '<div class="table-wrap"><table class="table stack-mobile compare-table"><thead><tr><th>#</th><th>What the user does</th><th>Device</th><th>Run ' + e(oldN) + "</th><th>Run " + e(newN) + "</th><th>Change</th></tr></thead><tbody>" +
-          rows.map((r) => "<tr>" +
-            '<td data-label="#" class="c-num"><span class="num">' + e(num(r.position)) + "</span></td>" +
-            '<td data-label="What the user does" class="c-does">' + e(r.user_does) + "</td>" +
-            '<td data-label="Device">' + deviceHtml(r.device) + "</td>" +
-            '<td data-label="Run ' + e(oldN) + '">' + outcomePill(r.old_outcome) + "</td>" +
-            '<td data-label="Run ' + e(newN) + '">' + outcomePill(r.new_outcome) + "</td>" +
-            '<td data-label="Change">' + (VERDICT[r.v] || VERDICT.same)[0] + "</td></tr>").join("") +
-          "</tbody></table></div>";
+        out.innerHTML =
+          '<div class="cmp-summary"><span class="pill pill-fixed">' + n.fixed + " fixed</span><span class=\"pill pill-broke\">" + n.broke +
+          ' broke</span><span class="pill pill-same">' + n.same + " same</span></div>" +
+          '<div class="cmp-cols label-caps" aria-hidden="true"><span>Pair &amp; device</span>' +
+          '<span class="col-run">Run ' + e(oldN) + (oldWhen ? " <small>" + e(oldWhen) + "</small>" : "") + "</span>" +
+          "<span>Change</span>" +
+          '<span class="col-run">Run ' + e(newN) + " <small>this run</small></span></div>" +
+          '<ul class="cmp-list">' + rows.map((r, i) => {
+            const broke = r.v === "broke";
+            return '<li class="cmp-row enter' + (broke ? " is-broke" : "") + '" style="--i:' + i + '">' +
+              '<div class="cmp-pair"><span class="icon-tile cmp-icon">' + ic(broke ? "triangle-alert" : deviceIcon(r.device)) + "</span>" +
+              '<p class="cmp-title"><span class="num">' + e(num(r.position)) + "</span> " + e(r.user_does) + " " + deviceChip(r.device) + "</p></div>" +
+              '<div class="cmp-a"><span class="sr-only">Run ' + e(oldN) + ": </span>" + outcomePill(r.old_outcome) + "</div>" +
+              '<div class="cmp-change">' + (VERDICT[r.v] || VERDICT.same) + "</div>" +
+              '<span class="cmp-arrow" aria-hidden="true">' + ic("arrow-right") + "</span>" +
+              '<div class="cmp-b"><span class="sr-only">Run ' + e(newN) + ": </span>" + outcomePill(r.new_outcome) + "</div></li>";
+          }).join("") + "</ul>";
         icons();
         S.compareDone = true;
       } catch (err) {
@@ -473,11 +545,11 @@
   }
 
   // ---------- painting everything ----------
-  function renderAll() {
+  function renderAll(animate) {
     renderHead();
     renderChanged();
     renderBanner();
-    renderTable();
+    renderTable(!!animate);
     renderPoints();
     renderRerun();
     renderCompareShell();
@@ -515,7 +587,7 @@
       const keepEarlier = S.earlier;
       applyRunData(d);
       if (!(d.earlier_runs && d.earlier_runs.length)) S.earlier = keepEarlier;
-      renderHead(); renderChanged(); renderBanner(); renderTable(); renderPoints();
+      renderHead(); renderChanged(); renderBanner(); renderTable(false); renderPoints();
     } catch (err) { /* the saved answer is already on screen; ignore */ }
   }
 
@@ -528,7 +600,7 @@
   }
   async function runPair(pid) {
     S.pairState[pid] = "testing";
-    renderPair(pid);
+    renderPair(pid, false);
     let ok = false;
     try {
       const r = await EC.api("POST", "/api/runs/" + encodeURIComponent(RUN_ID) + "/pairs/" + encodeURIComponent(pid));
@@ -538,7 +610,7 @@
     } catch (err) {
       S.pairState[pid] = "failed";
     }
-    renderPair(pid);
+    renderPair(pid, ok);   // the finished pair slides in and its pills pop
     renderHead();
     renderBanner();
     return ok;
@@ -563,16 +635,17 @@
     return ids || [];
   }
   async function finishRun() {
-    showProgress("Finishing up and picking what to fix first…", S.liveIds.length, S.liveIds.length);
+    showProgress("Finishing up and picking what to fix first…", doneCount(), S.liveIds.length);
     try {
       const r = await EC.api("POST", "/api/runs/" + encodeURIComponent(RUN_ID) + "/finish");
       if (r.run) S.run = Object.assign({}, S.run, r.run);
       S.points = r.points || [];
       S.changed = r.changed || [];
     } catch (err) {
-      $("live-progress").innerHTML = '<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>We couldn’t wrap up the run: " + e(err.message) +
-        '</div><button type="button" class="btn btn-secondary btn-sm" data-action="finish-retry">Try again</button></div>';
-      icons();
+      S.prog = null;
+      renderHead();
+      progressMessage('<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>We couldn’t wrap up the run: " + e(err.message) +
+        '</div><button type="button" class="btn btn-secondary btn-sm" data-action="finish-retry">Try again</button></div>');
       return false;
     }
     S.finished = true;
@@ -583,18 +656,19 @@
       u.searchParams.delete("start");
       history.replaceState(null, "", u.pathname + u.search + u.hash);
     } catch (err) { /* fine */ }
-    renderAll();
+    renderAll(false);
     if (S.run.kind === "changed") autoCompare();
     return true;
   }
+  function doneCount() { return S.liveIds.filter((id) => S.pairState[id] === "done").length; }
   async function runLive() {
     S.running = true;
     const ids = await pairIdsToRun();
     if (!ids.length) {
       S.running = false;
-      showProgress("", 0, 0, false);
-      $("live-progress").innerHTML = '<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>We couldn’t work out which pairs to test. Go back to your site and start a new run.</div></div>";
-      icons();
+      S.prog = null;
+      renderHead();
+      progressMessage('<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>We couldn’t work out which pairs to test. Go back to your site and start a new run.</div></div>");
       return;
     }
     S.liveIds = ids;
@@ -603,12 +677,14 @@
       const g = have.get(id);
       S.pairState[id] = g && g.rows.phone && g.rows.laptop ? "done" : "waiting";
     });
-    renderAll();
+    renderAll(false);
+    showProgress("running 1 of " + ids.length + "…", doneCount(), ids.length);
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
-      showProgress("Testing pair " + (i + 1) + " of " + ids.length + "…", i, ids.length);
       if (S.pairState[id] === "done") continue;
+      showProgress("running " + (i + 1) + " of " + ids.length + "…", doneCount(), ids.length);
       await runPair(id);
+      showProgress("running " + Math.min(i + 2, ids.length) + " of " + ids.length + "…", doneCount(), ids.length);
     }
     await finishRun();
   }
@@ -636,7 +712,7 @@
         });
       });
       EC.toast("Thanks — saved.", "success");
-      if (touched) { renderPair(touched.pair_id); renderBanner(); renderHead(); }
+      if (touched) { renderPair(touched.pair_id, false); renderBanner(); renderHead(); }
       if (!S.running) refetch();
     } catch (err) {
       if (err.status === 409) { EC.toast("That one was already answered.", "info"); refetch(); }
@@ -654,7 +730,7 @@
         S.points = r.points || S.points;
         S.changed = r.changed || S.changed;
       } catch (err) { /* table is still right; points refresh on reload */ }
-      renderAll();
+      renderAll(false);
     }
   }
 
@@ -721,7 +797,7 @@
     const a = t.dataset.action;
     if (a === "more") {
       const box = t.previousElementSibling;
-      const rid = t.closest("tr").dataset.rid;
+      const rid = t.closest(".result-card").dataset.rid;
       const open = box.classList.toggle("clamp3") === false;
       S.expanded[rid] = open;
       t.textContent = open ? "Less" : "More";
@@ -736,12 +812,23 @@
     else if (a === "reload") location.reload();
   }
 
+  // ---------- topbar crumbs ----------
+  function setNav() {
+    const nav = $("ctx-nav");
+    if (!nav || !S.run) return;
+    const proj = S.project ? '<a class="nav-pill" href="/project.html?id=' + encodeURIComponent(S.project.id) + '">' + e(S.project.name) + "</a>" : "";
+    nav.innerHTML = '<a class="nav-pill" href="/home.html">My projects</a>' + proj +
+      '<span class="nav-pill is-active" aria-current="page">Run ' + e(S.run.run_number) + "</span>";
+    nav.scrollLeft = nav.scrollWidth; // on phones the current page is the last pill; keep it in view
+  }
+
   // ---------- boot ----------
   async function boot() {
     if (!EC.requireLogin()) return;
     const s = EC.getSession();
     $("user-email").textContent = (s && s.user && s.user.email) || "";
     $("logout").addEventListener("click", EC.logout);
+    icons();
     document.addEventListener("click", onClick);
     document.addEventListener("change", (ev) => {
       const b = ev.target.closest && ev.target.closest("[data-pick]");
@@ -773,14 +860,15 @@
     }
     applyRunData(d);
     document.title = "Run " + S.run.run_number + " · Eval Co-pilot";
+    setNav();
     showScreen();
     if (LIVE) {
       renderHead();
       renderPoints();
-      runLive().catch(() => { S.running = false; showProgress("", 0, 0, false); $("live-progress").innerHTML = '<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>Something went wrong while testing. Reload the page to see what finished.</div></div>"; icons(); });
+      runLive().catch(() => { S.running = false; S.prog = null; renderHead(); progressMessage('<div class="banner banner-error" role="alert">' + ic("triangle-alert") + "<div>Something went wrong while testing. Reload the page to see what finished.</div></div>"); });
     } else {
       S.finished = true;
-      renderAll();
+      renderAll(true);
       if (S.run.kind === "changed") autoCompare();
     }
   }

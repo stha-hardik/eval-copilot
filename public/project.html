@@ -6,23 +6,29 @@
   <title>Golden pairs · Eval Co-pilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/project.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/home.html">Eval Co-pilot</a>
+    <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
+      <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
+      <span class="brand-name">Eval Co-pilot</span>
+    </a>
+    <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
+      <a class="nav-pill" href="/home.html">My projects</a>
+    </nav>
     <span class="spacer"></span>
-    <span class="user-email" id="who"></span>
-    <button class="btn btn-ghost btn-sm" type="button" id="logout">Log out</button>
+    <span class="user-email" id="user-email"></span>
+    <button class="btn btn-ghost btn-sm" id="logout" type="button">Log out</button>
   </header>
 
   <main class="container project-page" id="page">
-    <div class="stack-lg" aria-busy="true" id="loading">
-      <div class="skeleton" style="height:72px"></div>
-      <div class="skeleton" style="height:320px"></div>
-      <div class="skeleton" style="height:160px"></div>
+    <div class="stack-lg" aria-busy="true" id="loading" aria-label="Loading your project">
+      <div class="skeleton" style="height:120px;border-radius:24px"></div>
+      <div class="skeleton skeleton-card" style="height:320px"></div>
+      <div class="skeleton skeleton-card"></div>
     </div>
   </main>
 
