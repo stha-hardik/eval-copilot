@@ -305,3 +305,13 @@ def test_excerpt():
     assert "Solaris" not in site.excerpt(reply, ["nothere"])
     long_err = SiteReply(device="p", url="u", error="x" * 900)
     assert len(site.excerpt(long_err)) <= 500
+
+
+def test_private_addresses_are_never_opened(monkeypatch):
+    """A link (or a redirect) that resolves to a local/private address is refused before any request."""
+    monkeypatch.setattr(site.socket, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("10.0.0.5", 0))])
+    reply = site.fetch_pair("https://sneaky.example", "/", "GET", None, "laptop")
+    assert reply.status_code is None and reply.error == site.PRIVATE_MESSAGE
+    assert not site._host_is_public("localhost.") and not site._host_is_public("admin.localhost")
+    monkeypatch.setattr(site.socket, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("93.184.216.34", 0))])
+    assert site._host_is_public("shop.example")

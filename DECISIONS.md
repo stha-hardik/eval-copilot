@@ -55,3 +55,15 @@
     (Tidy with AI proposes the checks; real handles are read from bublsolar.com's public product list).
     `scripts/smoke_live.py` repeats the two-user RLS test and the run / re-run / compare checks against the
     live app. Passwords come from the shell, never from a file.
+21. **Bugs found by the end-to-end tests, fixed.** Local/private links in any spelling (127.1, 0x7f.0.0.1,
+    localhost., *.localhost) are refused when a site is added, and the site reader re-checks every address
+    (including every redirect hop) so a public link can't bounce us into a private network. Malformed links
+    and ids answer 400/404 instead of 500. The row's one-line why is always the real reason. The "Good now?"
+    panel names each pair even before it has run. A "changed" run only runs the pairs it was started with.
+22. **Schema change: `checks.created_at` and `changes.created_at` default to `clock_timestamp()`**
+    (migration `ordered_created_at`, `db/migration_04_ordered_created_at.sql`). Postgres gives every row of one
+    insert the same `now()`, so a pair's checks could come back shuffled; now they keep the order they were
+    written in.
+23. **A human's "Looks right / Looks wrong" answer is saved on the check, not on the result.** Results can
+    never be changed (that's what keeps Run 1 honest), so the row's outcome stays what the run decided and
+    the screen shows the human's answer next to it.

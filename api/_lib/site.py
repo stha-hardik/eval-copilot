@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import html as _html
+import ipaddress
 import json as _json
 import re
+import socket
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from http import HTTPStatus
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -316,6 +318,46 @@ def _shopify_cart_flow(
 
 # ---------------------------------------------------------------- fetching
 
+PRIVATE_MESSAGE = "That link points to a private address, so we won't open it."
+REDIRECT_CODES = (301, 302, 303, 307, 308)
+
+
+class UnsafeHost(requests.RequestException):
+    """The link resolves to a local or private address."""
+
+
+def _host_is_public(host: str) -> bool:
+    """False when any address the host resolves to is not public (loopback, private, link-local...)."""
+    host = (host or "").strip("[]").rstrip(".").lower()
+    if not host or host == "localhost" or host.endswith(".localhost"):
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError):
+        return True  # can't resolve: the request itself will fail with a plain "couldn't reach" message
+    return all(ipaddress.ip_address(info[4][0].split("%")[0]).is_global for info in infos)
+
+
+class SafeSession(requests.Session):
+    """A session that only talks to public addresses, re-checked on every redirect hop."""
+
+    def request(self, method, url, **kwargs):  # type: ignore[override]
+        kwargs["allow_redirects"] = False
+        for _ in range(6):
+            if not _host_is_public(urlsplit(url).hostname or ""):
+                raise UnsafeHost(PRIVATE_MESSAGE)
+            resp = super().request(method, url, **kwargs)
+            location = resp.headers.get("Location") if resp.status_code in REDIRECT_CODES else None
+            if not location:
+                return resp
+            url = urljoin(url, location)
+            if resp.status_code == 303 or (resp.status_code in (301, 302) and method.upper() == "POST"):
+                method = "GET"
+                kwargs.pop("json", None)
+                kwargs.pop("data", None)
+        return resp
+
+
 def fetch_pair(
     site_url: str, request_url: str, method: str, request_body: Any, device: str
 ) -> SiteReply:
@@ -324,7 +366,7 @@ def fetch_pair(
     base = (site_url or "").strip().rstrip("/")
     path = _path_of(request_url)
     try:
-        session = requests.Session()
+        session = SafeSession()
         session.headers.update(
             {
                 "User-Agent": UA.get(device, UA["laptop"]),
@@ -342,6 +384,8 @@ def fetch_pair(
         if path.rstrip("/").endswith("/cart.js") and reply.json is not None:
             reply.summary = cart_summary(reply.json)
         return reply
+    except UnsafeHost:
+        return _error_reply(device, url, PRIVATE_MESSAGE)
     except requests.Timeout:
         return _error_reply(device, url, TIMEOUT_MESSAGE)
     except requests.RequestException:

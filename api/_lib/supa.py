@@ -134,6 +134,8 @@ class Db:
                 raise SupaError(401, "Please log in again.", code)
             if code == "23505":
                 raise SupaError(409, "That was already saved.", code)
+            if code == "22P02":  # not a valid id: same answer as "not yours / not there"
+                raise SupaError(404, "We couldn't find that.", code)
             if code == "42501":
                 raise SupaError(404, "We couldn't find that.", code)
             raise SupaError(500, "The database said no. Please try again.", code)

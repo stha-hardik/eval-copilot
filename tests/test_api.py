@@ -513,12 +513,16 @@ def test_project_link_is_required(api):
     err(api.post("/api/projects", {"name": "x", "site_url": 42}), 400)
 
 
-@pytest.mark.xfail(reason="BUG: clean_site_url (index.py:98-108) only blocks dotted-quad IPs and the literal host "
-                          "'localhost'; short/hex IPv4 forms and 'localhost.' / '*.localhost' pass and "
-                          "requests resolves them to loopback (SSRF)")
-@pytest.mark.parametrize("link", ["http://127.1", "http://0x7f.0.0.1", "http://localhost./", "http://admin.localhost"])
+@pytest.mark.parametrize("link", ["http://127.1", "http://0x7f.0.0.1", "http://0177.0.0.1", "http://localhost./",
+                                  "http://admin.localhost"])
 def test_loopback_spellings_are_rejected(api, link):
     err(api.post("/api/projects", {"name": "x", "site_url": link}), 400)
+
+
+@pytest.mark.parametrize("link", ["https://[bad", "http://[::1"])
+def test_unparseable_links_are_400_not_500(api, link):
+    err(api.post("/api/projects", {"name": "x", "site_url": link}), 400)
+    err(api.post("/api/pairs/tidy", {"rough_text": "x", "site_url": link}), 400)
 
 
 def test_projects_newest_first_and_last_run_fills_after_a_run(api, world):
@@ -562,9 +566,6 @@ def test_read_unknown_project_is_404(api):
     assert err(api.get(f"/api/projects/{uuid.uuid4()}"), 404) == "We couldn't find this site."
 
 
-@pytest.mark.xfail(reason="BUG: ids from the URL go straight into a PostgREST filter (index.py:153, 160, 328, 509, "
-                          "686); Postgres answers 22P02 for a non-uuid and supa.Db._req (supa.py:139) turns that "
-                          "into a 500, but docs/API.md promises 404")
 @pytest.mark.parametrize("method,path", [
     ("GET", "/api/projects/not-a-uuid"), ("GET", "/api/runs/not-a-uuid"), ("GET", "/api/runs/not-a-uuid/compare"),
     ("PATCH", "/api/pairs/not-a-uuid"), ("PATCH", "/api/result-checks/not-a-uuid"),
@@ -574,7 +575,6 @@ def test_a_malformed_id_in_the_url_is_404(api, method, path):
     err(api.call(method, path, json={"passed": True, "approved": True}), 404)
 
 
-@pytest.mark.xfail(reason="BUG: compare passes ?with= straight to the database (index.py:654); a non-uuid gives 500")
 def test_compare_with_a_malformed_run_id_is_404(api, world, ran):
     err(api.get(f"/api/runs/{ran.id}/compare?with=nonsense"), 404)
 
@@ -761,8 +761,6 @@ def test_create_pair_in_unknown_project_is_404(api):
     assert err(api.post(f"/api/projects/{uuid.uuid4()}/pairs", GOOD), 404) == "We couldn't find this site."
 
 
-@pytest.mark.xfail(reason="BUG: clean_checks (index.py:119) does `c.get('rule') not in RULE_DECIDER`; an unhashable "
-                          "rule such as ['status_ok'] raises TypeError -> 500 instead of 400")
 def test_create_pair_with_a_list_as_rule_is_400_not_500(api):
     pid = new_project(api)
     err(api.post(f"/api/projects/{pid}/pairs", {**GOOD, "checks": [{"rule": ["status_ok"]}]}), 400)
@@ -904,8 +902,6 @@ def test_changed_run_picks_pairs_in_priority_order_without_duplicates(api, world
     assert started["pair_ids"] == [world.ids["cart"], world.ids["search"]]
 
 
-@pytest.mark.xfail(reason="BUG: create_run (index.py:376) does `i not in approved` with the dict `approved`; an "
-                          "unhashable entry in pair_ids (e.g. [[1]]) raises TypeError -> 500 instead of 400")
 def test_changed_run_with_junk_pair_ids_is_400_not_500(api, world):
     err(api.post(f"/api/projects/{world.pid}/runs", {"kind": "changed", "pair_ids": [["x"]]}), 400)
 
@@ -995,9 +991,6 @@ def test_door_9_timeout_is_a_fail_with_the_timeout_reason(env, api, world, ran):
         assert row["what_site_said"] == site.TIMEOUT_MESSAGE
 
 
-@pytest.mark.xfail(reason="BUG: _row_why (index.py:461-471) returns the FIRST check with passed False; when "
-                          "text_has/min_results come before status_ok on a dead page, the row's one-line why "
-                          "becomes 'Not checked, because the page didn't load.' instead of the 404 reason")
 def test_row_why_is_the_real_reason_even_when_status_check_is_not_first(api):
     pid = new_project(api)
     pair = new_pair(api, pid, "Dead page", "/broken", [chk("text_has", "Solaris"), chk("status_ok")], approved=True)
@@ -1211,6 +1204,12 @@ def test_read_run_shape_and_order(api, world, ran):
 
 def test_read_run_unknown_is_404(api):
     assert err(api.get(f"/api/runs/{uuid.uuid4()}"), 404) == "We couldn't find this run."
+
+
+def test_changed_entries_carry_position_and_text_before_the_pair_has_run(api, world):
+    started = ok(api.post(f"/api/projects/{world.pid}/runs", {"kind": "changed", "pair_ids": [world.ids["cart"]]}), 201)
+    (c,) = ok(api.get(f"/api/runs/{started['run']['id']}"))["changed"]
+    assert (c["position"], c["user_does"]) == (4, "Cart")
 
 
 def test_read_run_before_finishing_has_no_points(api, world):

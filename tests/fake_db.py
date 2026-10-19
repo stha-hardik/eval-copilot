@@ -146,7 +146,7 @@ OWNER_PARENT = {
 
 RESERVED = {"select", "order", "limit"}
 
-# columns of type uuid: Postgres refuses anything else with 22P02 (PostgREST answers 400 -> Db maps it to 500)
+# columns of type uuid: Postgres refuses anything else with 22P02 (PostgREST answers 400 -> Db maps it to 404)
 UUID_COLS = {name: {"id"} | {col for child, col, _ in FKS if child == name} for name in TABLES}
 UUID_COLS["projects"].add("user_id")
 
@@ -205,7 +205,7 @@ def _pg_error(code: str) -> SupaError:
         return SupaError(401, "Please log in again.", code)
     if code == "23505":
         return SupaError(409, "That was already saved.", code)
-    if code == "42501":
+    if code in ("42501", "22P02"):  # mirrors supa.Db._req
         return SupaError(404, "We couldn't find that.", code)
     return SupaError(500, "The database said no. Please try again.", code)
 
@@ -276,8 +276,14 @@ def _matches(table: str, row: dict, col: str, expr: str) -> bool:
     raise NotImplementedError(f"fake_db: unsupported filter {expr!r}")
 
 
-def _filters(params: dict) -> list[tuple[str, str]]:
-    return [(k, v) for k, v in params.items() if k not in RESERVED]
+def _filters(table: str, params: dict) -> list[tuple[str, str]]:
+    """The column filters of a request. Postgres checks them when it parses the query, even if no row is
+    there to compare with, so a bad column or a malformed uuid fails here and not only on a non-empty table."""
+    out = [(k, v) for k, v in params.items() if k not in RESERVED]
+    probe = {col: None for col in TABLES[table]["cols"]}
+    for col, expr in out:
+        _matches(table, probe, col, expr)
+    return out
 
 
 # ---------------------------------------------------------------- the Db stand-in
@@ -363,7 +369,7 @@ class FakeDb:
         with self.store.lock:
             ctx = self._ctx(table)
             rows = self._visible(ctx, table)
-            for col, expr in _filters(params):
+            for col, expr in _filters(table, params):
                 rows = [r for r in rows if _matches(table, r, col, expr)]
             if params.get("order"):
                 for part in reversed(_split_top(params["order"])):
@@ -457,7 +463,7 @@ class FakeDb:
             if "update" not in spec["ops"]:
                 return []  # no policy: no row is ever updatable
             targets = self._visible(ctx, table)
-            for col, expr in _filters(filters):
+            for col, expr in _filters(table, filters):
                 targets = [r for r in targets if _matches(table, r, col, expr)]
             targets = [r for r in targets if self._using_update(table, r)]
             new_rows = []
@@ -476,7 +482,7 @@ class FakeDb:
             if "delete" not in TABLES[table]["ops"]:
                 return []
             targets = self._visible(ctx, table)
-            for col, expr in _filters(filters):
+            for col, expr in _filters(table, filters):
                 targets = [r for r in targets if _matches(table, r, col, expr)]
             gone = copy.deepcopy(targets)
             for row in targets:

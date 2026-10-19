@@ -6,6 +6,8 @@ live site with plain `requests`.
 """
 import ipaddress
 import os
+import re
+import socket
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -86,6 +88,22 @@ def text_field(body: dict, name: str, label: str, cap: int = 1000) -> str:
     return value.strip()[:cap]
 
 
+def _public_host(host: str) -> bool:
+    """Reject local and private hosts in any spelling (127.1, 0x7f.0.0.1, localhost., *.localhost...)."""
+    if not host or host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        return False
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_global
+    except ValueError:
+        pass
+    if re.fullmatch(r"[0-9a-fx.]+", host):  # numeric shorthand IPv4 that the network stack would accept
+        try:
+            return ipaddress.ip_address(socket.inet_ntoa(socket.inet_aton(host))).is_global
+        except OSError:
+            return True  # not a numeric address after all (e.g. cafe.de)
+    return True
+
+
 def clean_site_url(raw) -> str:
     """A public http(s) link only: no passwords, no local or private addresses."""
     if not isinstance(raw, str) or not raw.strip():
@@ -93,19 +111,18 @@ def clean_site_url(raw) -> str:
     url = raw.strip()
     if "://" not in url:
         url = "https://" + url
-    p = urlparse(url)
-    host = (p.hostname or "").lower()
+    try:
+        p = urlparse(url)
+        host = (p.hostname or "").lower().rstrip(".")
+        p.port  # raises on a bad port
+    except ValueError:
+        fail(400, "That doesn't look like a link. It should start with https://")
     if p.scheme not in ("http", "https") or not host or "." not in host:
         fail(400, "That doesn't look like a link. It should start with https://")
     if p.username or p.password:
         fail(400, "Please use the public link only, without a username or password in it.")
-    try:
-        ip = ipaddress.ip_address(host)
-        if not ip.is_global:
-            fail(400, "Please use the public link of your live site.")
-    except ValueError:
-        if host == "localhost" or host.endswith(".local") or host.endswith(".internal"):
-            fail(400, "Please use the public link of your live site.")
+    if not _public_host(host):
+        fail(400, "Please use the public link of your live site.")
     return f"{p.scheme}://{p.netloc}".rstrip("/")
 
 
@@ -116,7 +133,7 @@ def clean_checks(raw) -> list[dict]:
         fail(400, "The checks are not valid.")
     out = []
     for c in raw:
-        if not isinstance(c, dict) or c.get("rule") not in RULE_DECIDER:
+        if not isinstance(c, dict) or not isinstance(c.get("rule"), str) or c["rule"] not in RULE_DECIDER:
             fail(400, "One of the checks is not valid.")
         expected = c.get("expected")
         expected = None if expected is None else str(expected).strip()[:300] or None
@@ -369,11 +386,13 @@ async def create_run(project_id: str, request: Request, authorization: str | Non
     else:
         ids = body.get("pair_ids") or []
         other_pair_id = body.get("other_pair_id")
-        if other_pair_id and other_pair_id not in ids:
+        if other_pair_id is not None and not isinstance(other_pair_id, str):
+            fail(400, "Some details are missing or not valid.")
+        if other_pair_id and isinstance(ids, list) and other_pair_id not in ids:
             ids = [*ids, other_pair_id]
         if not isinstance(ids, list) or not ids:
             fail(400, "Tick at least one pair you changed.")
-        if any(i not in approved for i in ids):
+        if any(not isinstance(i, str) or i not in approved for i in ids):
             fail(400, "Only approved pairs of this site can run.")
         chosen = [approved[i] for i in dict.fromkeys(ids)]
     if not chosen:
@@ -462,7 +481,7 @@ def _row_why(outcome: str, checks: list[dict]) -> str:
     if outcome == "pass":
         return ""
     for c in checks:
-        if c["passed"] is False and c.get("why"):
+        if c["passed"] is False and c.get("why") and c["why"] != NOT_CHECKED:
             return c["why"]
     if any(c.get("why") == BLOCKED_WHY for c in checks):
         return BLOCKED_WHY
@@ -511,6 +530,9 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
         fail(404, "We couldn't find that pair in this site.")
     if not pair["approved"]:
         fail(400, "This pair isn't approved yet.")
+    if run["kind"] == "changed" and not db.select("changes", run_id=f"eq.{run_id}", golden_pair_id=f"eq.{pair_id}",
+                                                  select="id"):
+        fail(400, "This pair isn't part of this re-run.")
     done = {r["device"] for r in db.select("results", run_id=f"eq.{run_id}", golden_pair_id=f"eq.{pair_id}",
                                            select="device")}
     todo = [d for d in DEVICES if d not in done]
@@ -579,16 +601,18 @@ def read_points(db: Db, run_id: str, rows: list[dict]) -> list[dict]:
 def read_changed(db: Db, run: dict, rows: list[dict]) -> list[dict]:
     if run["kind"] != "changed":
         return []
+    changes = [c for c in db.select("changes", run_id=f"eq.{run['id']}", order="created_at.asc")
+               if c["golden_pair_id"]]
+    pairs = {p["id"]: p for p in db.select("golden_pairs", id=in_list([c["golden_pair_id"] for c in changes]),
+                                           select="id,position,user_does")} if changes else {}
     out = []
-    for ch in db.select("changes", run_id=f"eq.{run['id']}", order="created_at.asc"):
+    for ch in changes:
         pid = ch["golden_pair_id"]
-        if not pid:
-            continue
+        pair = pairs.get(pid, {})
         mine = {r["device"]: r for r in rows if r["pair_id"] == pid}
-        any_row = next(iter(mine.values()), {})
         phone = mine.get("phone", {}).get("outcome")
         laptop = mine.get("laptop", {}).get("outcome")
-        out.append({"pair_id": pid, "position": any_row.get("position"), "user_does": any_row.get("user_does"),
+        out.append({"pair_id": pid, "position": pair.get("position"), "user_does": pair.get("user_does"),
                     "note": ch["note"], "phone": phone, "laptop": laptop,
                     "good_now": "yes" if phone == "pass" and laptop == "pass" else "no"})
     return out
