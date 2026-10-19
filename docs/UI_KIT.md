@@ -12,7 +12,7 @@ No React, no build step, no framework CSS. Light theme only. Every page:
 <link rel="stylesheet" href="/css/app.css">  (+ the page's own css file)
 </head><body>
 … <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
-<script src="/js/api.js"></script><script src="/js/<page>.js"></script>
+<script src="/js/api.js"></script><script src="/js/ui.js"></script><script src="/js/<page>.js"></script>
 ```
 
 Icons: Lucide only, `<i data-lucide="name" aria-hidden="true"></i>`, then call `lucide.createIcons()` after
@@ -62,14 +62,8 @@ debossed troughs; `.input.is-error` adds a clay-red inner ring. Leading icon / t
   <button class="input-trail" type="button" aria-label="Show password">…</button>   <!-- or span.input-trail.is-static -->
 </div>
 ```
-`.checkbox` wraps `input[type=checkbox]` + text (44px target): inset 24px square, accent gem when checked.
-
-Segmented control (pick one): `.segmented` > `button.segmented-btn[aria-pressed="true|false"]` (or `.is-active`).
-
-Status pills: `.pill` plus one of `.pill-pass` (Pass / All passed), `.pill-fail` (Fail), `.pill-cant` (Can't test),
-`.pill-human` (Needs a look), `.pill-fixed`, `.pill-broke`, `.pill-same`, `.pill-neutral`, `.pill-priority`.
-Capsule, tint, coloured text, solid dot, always a word. The dot is drawn by CSS; any Lucide icon left inside a
-`.pill` is hidden. Add `.pop` to make a pill scale in (.8 to 1, 360ms).
+Controls that appear more than once are ONE component each (styles in `app.css`, behaviour in `ui.js` as `EC.ui.*`).
+Page CSS may only position them. See "Components" below.
 
 Progress: `.progress` (debossed 12px track; `.progress-sm` 8px) > `.progress-fill` with `style="--p:0.7"`
 (fill is `transform: scaleX(var(--p))` from the left and draws in on load; `.is-pass` sage, `.is-fail` clay, default
@@ -92,42 +86,100 @@ Motion utilities: `.enter` (fade up 8px, 560ms; stagger with `style="--i:N"`, de
 `.pop`, `.settle` (login logo). Note `.enter` and `.pop` use fill-mode `both`, so do not put a hover `transform`
 on the same element (wrap it: `li.enter > .card`).
 
-Home page pieces (reusable): `.eyebrow`, `.stats` > `.stat` (`.stat-label`, `.stat-value`, `.icon-tile`),
-`.project-grid` (3 / 2 / 1 columns), `.project-card`, `.run-tray`, `.add-tile`.
+Home page pieces: see Stat tile and Project card under Components.
 
-## Topbar and context nav (shared markup)
+## Components (define once, reuse everywhere)
+If a control is already here, use it; never restyle its look or motion in a page file (placement and margins only).
+All motion is `transform` / `opacity` (plus the stat ring's `stroke-dashoffset`) and is skipped for
+`prefers-reduced-motion` (CSS block in `app.css`; JS animations check `EC.ui.reducedMotion()`).
+
+| Component | CSS (`app.css`) | JS (`ui.js`) | Used by |
+|---|---|---|---|
+| Top bar | `.topbar`, `.brand`, `.avatar`, `.health-pill`, `.tabbar` | `EC.ui.topbar(opts)` | home, project, run |
+| Segmented control | `.segmented`, `.segmented-btn`, `.seg-indicator` | `EC.ui.segmented(el)` | login Log in / Sign up, project filter All / Priority / Suggested |
+| Tabs | `.tabs`, `.tab`, `.tabbar` | `EC.ui.tabs(el)` (made by `topbar`) | top bar + phone bottom bar |
+| Switch | `.switch` | `EC.ui.switchHtml(o)` | pair "Approved" |
+| Icon toggle | `.icon-btn.icon-toggle` | `EC.ui.iconToggle(el)`, `.set(btn, on)`, `iconToggleHtml(o)` | pair Priority star, voice mic |
+| Checkbox | `.checkbox` | none | re-run pair pickers |
+| Disclosure | `details.disclosure`, `.disclosure-btn` | `EC.ui.disclosure(details, open?)` (automatic for every `details.disclosure`) | "How to read this", result "Checks (N)", "More / Less" |
+| Menu | `.menu`, `.menu-item`, `.menu-wrap` | `EC.ui.menu(button, menuEl)` | avatar menu |
+| Status pill | `.pill` + `.pill-*` | `EC.ui.pill(kind, text, {pop})` | everywhere a status is shown |
+| Chip | `.chip`, `.chip-sm` | none | "N sites", site link, device tag |
+| Stat tile | `.stats` > `.stat`, `.ring` | none | home |
+| Project card | `.project-card`, `.run-tray`, `.add-tile` | none | home |
+
+### Top bar: `EC.ui.topbar({ page, projectId, projectName, runId, runNumber })`
+Put `<header class="topbar" id="topbar"></header>` on the page and call it once, early. `page` is `"home"`, `"project"`
+or `"run"`. It renders the brand tile, the four tabs (My projects, Golden tests, Runs & results, Compare), a real
+`GET /api/health` pill, "Log out" and the avatar menu (which shows the email in `#user-email`; both log-out buttons
+call `EC.logout()`). On phones (<= 640px) the bar shrinks to brand tile + page title + avatar and the tabs become a
+fixed bottom bar (the component adds `<nav class="tabbar" id="tabbar">` to `<body>` and `body.has-tabbar`).
+Returns `{ update(opts), setActive(key), el }`; call `update({ projectId, projectName, runId, runNumber })` once the page
+has its data. Tabs link to the page's own project / run, else the last opened ones remembered in `localStorage`
+(`ec.lastProject`, `ec.lastProjectName`, `ec.lastRun`, plus `ec.lastRunProject` so a run is never offered under another
+project); an unknown target is a disabled tab (`aria-disabled`, "Open a project first"). Pages call
+`EC.ui.remember({ projectId, projectName, runId })` after their data loaded. On the run page the Runs & results and
+Compare tabs do not reload: they scroll and slide the indicator (Compare sets `#compare`). Logging out forgets the
+remembered ids. The project page's sticky run bar sits above the bottom tab bar; do the same for any other fixed bar
+(`bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--space-sm))`).
+
+### Segmented control and tabs
 ```html
-<header class="topbar">
-  <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
-    <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
-    <span class="brand-name">Eval Co-pilot</span>          <!-- visually hidden on phones -->
-  </a>
-  <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
-    <a class="nav-pill is-active" href="/home.html" aria-current="page">My projects</a>
-  </nav>
-  <span class="spacer"></span>
-  <span class="user-email" id="user-email"></span>            <!-- hidden on phones -->
-  <button class="btn btn-ghost btn-sm" id="logout" type="button">Log out</button>
-</header>
+<div class="segmented" role="group" aria-label="Show">
+  <button type="button" class="segmented-btn" data-value="all" aria-pressed="true">All</button>
+  <button type="button" class="segmented-btn" data-value="priority" aria-pressed="false">Priority</button>
+</div>
 ```
-Crumbs by page (always escape names with `EC.esc`):
-- Home: `My projects` is the active pill (above).
-- Project page: "My projects" is a plain link, the project name is the active one.
-  ```html
-  <a class="nav-pill" href="/home.html">My projects</a>
-  <span class="nav-pill is-active" aria-current="page">Bubl Solar</span>
-  ```
-  (If you prefer the project pill to stay a link, use `<a class="nav-pill is-active" href="/project.html?id=…" aria-current="page">`.)
-- Run page: project crumb is a link, "Run 3" is active, and "My projects" is not active:
-  ```html
-  <a class="nav-pill" href="/home.html">My projects</a>
-  <a class="nav-pill" href="/project.html?id=…">Bubl Solar</a>
-  <span class="nav-pill is-active" aria-current="page">Run 3</span>
-  ```
-Only one pill carries `is-active` + `aria-current="page"`. Long names truncate (max 220px, 160px on phones). On phones
-the pills scroll sideways inside their container, never the page. The old markup (`a.brand` with plain text) still renders.
+`const seg = EC.ui.segmented(el)` adds the single raised `.seg-indicator` that slides (FLIP, 360ms) to the selection,
+keeps `aria-pressed` (or `aria-selected` when `role="tablist"`), handles arrow keys / Home / End and emits a bubbling
+`change` event (`ev.detail.value`). `seg.select(value, { silent })`, `seg.refresh()` after changing labels. Keep the element
+and update its labels in place so the indicator can slide; do not re-create it. Tabs use the same indicator (`EC.ui.tabs`).
 
-## Shared JS (`/js/api.js`, already written, exposes `window.EC`)
+### Switch
+`EC.ui.switchHtml({ checked, onLabel: "Approved", offLabel: "Not approved", label, attrs: 'data-act="approve"' })` returns a
+real `input[type=checkbox][role=switch]` inside `label.switch`; the thumb slides 22px, squeezes while pressed, and the
+label word and colour cross-fade. Read `input.checked`; listen for `change`.
+
+### Icon toggle
+`EC.ui.iconToggleHtml({ icon: "star", pressed, label, attrs })` gives `button.icon-btn.icon-toggle[aria-pressed]` (raised off,
+inset on, icon fills and pops). Page code that flips optimistically calls `EC.ui.iconToggle.set(btn, true|false)` (plays
+the pop when turning on); standalone toggles can call `EC.ui.iconToggle(btnOrContainer)` to flip on click and emit
+`change`. Add `.is-outline` for icons that should not fill (mic).
+
+### Checkbox
+`<label class="checkbox"><input type="checkbox"> text</label>`: inset square, the accent gem pops in with a check, the whole
+row (44px) is the hit area.
+
+### Disclosure
+```html
+<details class="disclosure" open>
+  <summary><span class="disclosure-title">How to read this</span><i data-lucide="chevron-down" class="disclosure-chev"></i></summary>
+  <div class="disclosure-body">...</div>
+</details>
+```
+No setup needed: one delegated handler animates every `details.disclosure` (content fades and rises on open, fades out
+270ms before `open` is removed). Add `.disclosure-inline` for a summary that is not full width. `EC.ui.disclosure(d, true|false)`
+opens or closes from code. A small text button that expands something in place uses `.disclosure-btn[aria-expanded]` with the
+same chevron.
+
+### Menu
+`.menu-wrap` > trigger button + `<div class="menu" role="menu">` with `button.menu-item[role=menuitem]` children.
+`EC.ui.menu(button, menuEl)` opens with fade + scale from the trigger corner, closes on Escape / outside click, moves
+focus to the first item and back to the button.
+
+### Status pill
+`<span class="pill pill-pass">Pass</span>`, or `EC.ui.pill("pass", "Pass", { pop: true })`. Kinds: `pass`, `fail`, `cant`,
+`human` (you check), `running` (dot pulses), `neutral`, `priority`, `fixed`, `broke`, `same`. Add `.pop` when a pill first
+appears with a result; `.has-icon` keeps a Lucide icon instead of the dot. Never write a page-local pill.
+
+### Stat tile and project card (home)
+`.stats` > `.stat` (`.stat-label`, `.stat-value` with `.is-fail` / `.is-pass`, optional `.stat-sub`, raised `.icon-tile`).
+The pass-rate tile holds an SVG `.ring` whose `.ring-arc` draws in with `style="--p:<percent>"`. `.project-card`: icon tile,
+status pill, name, site link, `.run-tray` (outcome icon + "Last run" text + progress bar), foot with a `.label-caps` tag and
+an Open button; hover lifts 2px and cross-fades the shadow. `.add-tile` is the "Add a website" tile. Every number shown comes
+from the API (see `public/js/home.js`).
+
+## Shared JS (`/js/api.js` exposes `window.EC`; `/js/ui.js` adds `EC.ui`, see Components)
 - `EC.api(method, path, body?)` → JSON; throws `EC.ApiError` (`.status`, `.message` in plain words);
   handles 401 → refresh → retry → redirect to login.
 - `EC.requireLogin()` (call first on logged-in pages; returns false and redirects if no session),

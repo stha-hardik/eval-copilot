@@ -28,6 +28,7 @@
   };
 
   const $ = (id) => document.getElementById(id);
+  let bar = null; // the shared top bar (EC.ui.topbar)
 
   // ---------- small helpers ----------
   function icons() { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); }
@@ -42,11 +43,10 @@
   function num(p) { return p == null ? "#" : "#" + p; }
 
   function outcomePill(o, pop) {
-    const p = pop ? " pop" : "";
-    if (o === "pass") return '<span class="pill pill-pass' + p + '">Pass</span>';
-    if (o === "fail") return '<span class="pill pill-fail' + p + '">Fail</span>';
-    if (o === "cant_test") return '<span class="pill pill-cant' + p + '">Can’t test</span>';
-    return '<span class="pill pill-neutral' + p + '">Not tested</span>';
+    if (o === "pass") return EC.ui.pill("pass", "Pass", { pop: pop });
+    if (o === "fail") return EC.ui.pill("fail", "Fail", { pop: pop });
+    if (o === "cant_test") return EC.ui.pill("cant", "Can’t test", { pop: pop });
+    return EC.ui.pill("neutral", "Not tested", { pop: pop });
   }
   function deviceLabel(d) { return d === "phone" ? "Phone" : "Laptop"; }
   function deviceIcon(d) { return d === "phone" ? "smartphone" : "laptop"; }
@@ -272,7 +272,7 @@
       (r && c.why ? '<p class="check-why">' + e(c.why) + "</p>" : "") + "</li>";
   }
 
-  function deviceChip(d) { return '<span class="dev-chip">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>"; }
+  function deviceChip(d) { return '<span class="chip chip-sm">' + ic(deviceIcon(d)) + deviceLabel(d) + "</span>"; }
 
   // one raised row-card; o = {pill, showed, side, checks, rid, cls, enter, i}
   function cardHtml(item, d, o) {
@@ -311,10 +311,11 @@
     if (!(r.checks && r.checks.length)) return "";
     const pend = pendingManual(r).length;
     const isOpen = S.detailsOpen[r.result_id] !== undefined ? S.detailsOpen[r.result_id] : false;
-    return '<div class="rc-checks"><details class="checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
-      "<summary>" + ic("chevron-right") + "Checks (" + r.checks.length + ")" +
-      (pend ? ' <span class="pill pill-human">' + pend + " to look at</span>" : "") + "</summary>" +
-      '<ul class="check-list">' + r.checks.map((c) => checkLi(c, r)).join("") + "</ul></details></div>";
+    return '<div class="rc-checks"><details class="disclosure disclosure-inline checks" data-rid="' + e(r.result_id) + '"' + (isOpen ? " open" : "") + ">" +
+      '<summary><span class="disclosure-title">Checks (' + r.checks.length + ")</span>" +
+      (pend ? ' <span class="pill pill-human">' + pend + " to look at</span>" : "") +
+      '<i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i></summary>' +
+      '<div class="disclosure-body"><ul class="check-list">' + r.checks.map((c) => checkLi(c, r)).join("") + "</ul></div></details></div>";
   }
 
   function groupHtml(item, animate, idx, pop) {
@@ -323,7 +324,7 @@
       return devs.map((d) => {
         const failed = item.state === "failed";
         const pill = failed ? '<span class="pill pill-cant">Couldn’t finish</span>'
-          : item.state === "testing" ? '<span class="pill pill-human">Running…</span>'
+          : item.state === "testing" ? '<span class="pill pill-running">Running…</span>'
           : '<span class="pill pill-neutral">Waiting…</span>';
         const showed = failed ? '<p class="rc-showed">Couldn’t finish. Try again.</p>'
           : '<div class="skeleton rc-skel" style="width:70%" aria-hidden="true"></div>';
@@ -340,7 +341,8 @@
       const open = !!S.expanded[r.result_id];
       const showed = '<div class="rc-showed-wrap">' + (long
         ? '<div class="rc-showed showed' + (open ? "" : " clamp3") + '"><span class="rc-showed-label">The site showed:</span> ' + e(long) + "</div>" +
-          '<button type="button" class="link-btn" data-action="more"' + (open ? "" : " hidden") + ">" + (open ? "Less" : "More") + "</button>"
+          '<button type="button" class="disclosure-btn" data-action="more" aria-expanded="' + (open ? "true" : "false") + '"' + (open ? "" : " hidden") + ">" +
+            "<span>" + (open ? "Less" : "More") + '</span><i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i></button>'
         : '<div class="rc-showed"><span class="rc-showed-label">The site showed:</span> nothing came back.</div>') +
         (r.status_code != null ? '<div class="status-code">Status ' + e(r.status_code) + "</div>" : "") + "</div>";
       return cardHtml(item, d, {
@@ -498,9 +500,9 @@
   }
 
   const VERDICT = {
-    fixed: '<span class="verdict is-fixed">' + ic("trending-up") + "Fixed</span>",
-    broke: '<span class="verdict is-broke">' + ic("triangle-alert") + "Broke</span>",
-    same: '<span class="verdict is-same">' + ic("minus") + "Same</span>",
+    fixed: EC.ui.pill("fixed", "Fixed"),
+    broke: EC.ui.pill("broke", "Broke"),
+    same: EC.ui.pill("same", "Same"),
   };
   async function doCompare(btn, retried) {
     const sel = $("compare-with");
@@ -660,6 +662,7 @@
     } catch (err) { /* fine */ }
     renderAll(false);
     if (S.run.kind === "changed") autoCompare();
+    scrollToCompareHash();
     return true;
   }
   function doneCount() { return S.liveIds.filter((id) => S.pairState[id] === "done").length; }
@@ -689,6 +692,12 @@
       showProgress("running " + Math.min(i + 2, ids.length) + " of " + ids.length + "…", doneCount(), ids.length);
     }
     await finishRun();
+  }
+  // Arriving on /run.html?id=..#compare: scroll to the compare section once it exists
+  function scrollToCompareHash() {
+    if (location.hash !== "#compare") return;
+    const sec = $("compare-section");
+    if (sec && !sec.hidden) sec.scrollIntoView({ behavior: EC.ui.reducedMotion() ? "auto" : "smooth", block: "start" });
   }
   function autoCompare() {
     if ($("compare-with")) doCompare(null);
@@ -802,7 +811,9 @@
       const rid = t.closest(".result-card").dataset.rid;
       const open = box.classList.toggle("clamp3") === false;
       S.expanded[rid] = open;
-      t.textContent = open ? "Less" : "More";
+      t.setAttribute("aria-expanded", open ? "true" : "false");
+      const lbl = t.querySelector("span");
+      if (lbl) lbl.textContent = open ? "Less" : "More";
     } else if (a === "answer") answerCheck(t);
     else if (a === "retry") retryPair(t.dataset.pair);
     else if (a === "tidy") tidy(t);
@@ -814,22 +825,10 @@
     else if (a === "reload") location.reload();
   }
 
-  // ---------- topbar crumbs ----------
-  function setNav() {
-    const nav = $("ctx-nav");
-    if (!nav || !S.run) return;
-    const proj = S.project ? '<a class="nav-pill" href="/project.html?id=' + encodeURIComponent(S.project.id) + '">' + e(S.project.name) + "</a>" : "";
-    nav.innerHTML = '<a class="nav-pill" href="/home.html">My projects</a>' + proj +
-      '<span class="nav-pill is-active" aria-current="page">Run ' + e(S.run.run_number) + "</span>";
-    nav.scrollLeft = nav.scrollWidth; // on phones the current page is the last pill; keep it in view
-  }
-
   // ---------- boot ----------
   async function boot() {
     if (!EC.requireLogin()) return;
-    const s = EC.getSession();
-    $("user-email").textContent = (s && s.user && s.user.email) || "";
-    $("logout").addEventListener("click", EC.logout);
+    bar = EC.ui.topbar({ page: "run", runId: RUN_ID });
     icons();
     document.addEventListener("click", onClick);
     document.addEventListener("change", (ev) => {
@@ -867,7 +866,8 @@
     }
     applyRunData(d);
     document.title = "Run " + S.run.run_number + " · Eval Co-pilot";
-    setNav();
+    EC.ui.remember({ projectId: S.project && S.project.id, projectName: S.project && S.project.name, runId: RUN_ID });
+    bar.update({ projectId: S.project && S.project.id, projectName: S.project && S.project.name, runNumber: S.run.run_number });
     showScreen();
     if (LIVE) {
       renderHead();
@@ -877,6 +877,7 @@
       S.finished = true;
       renderAll(true);
       if (S.run.kind === "changed") autoCompare();
+      scrollToCompareHash();
     }
   }
   boot();

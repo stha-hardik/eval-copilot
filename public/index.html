@@ -19,8 +19,8 @@
       </div>
 
       <div class="segmented" role="group" aria-label="Log in or sign up">
-        <button type="button" class="segmented-btn" id="tab-login" aria-pressed="true">Log in</button>
-        <button type="button" class="segmented-btn" id="tab-signup" aria-pressed="false">Sign up</button>
+        <button type="button" class="segmented-btn" id="tab-login" data-value="login" aria-pressed="true">Log in</button>
+        <button type="button" class="segmented-btn" id="tab-signup" data-value="signup" aria-pressed="false">Sign up</button>
       </div>
 
       <form id="auth-form" class="stack" novalidate>
@@ -55,6 +55,7 @@
 
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
   <script src="/js/login.js"></script>
 </body>
 </html>

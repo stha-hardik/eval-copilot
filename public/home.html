@@ -10,27 +10,19 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
-      <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
-      <span class="brand-name">Eval Co-pilot</span>
-    </a>
-    <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
-      <a class="nav-pill is-active" href="/home.html" aria-current="page">My projects</a>
-    </nav>
-    <span class="spacer"></span>
-    <span class="user-email" id="user-email"></span>
-    <button class="btn btn-ghost btn-sm" id="logout" type="button">Log out</button>
-  </header>
+  <header class="topbar" id="topbar"></header>
 
   <main class="container">
     <div class="page-head enter">
       <div>
-        <span class="eyebrow">Your websites</span>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Your websites</span>
         <h1>My projects</h1>
         <p>Each site you test, with its latest run.</p>
       </div>
-      <button class="btn btn-primary" id="new-site" type="button"><i data-lucide="plus" aria-hidden="true"></i>New project</button>
+      <div class="head-actions">
+        <span class="chip" id="site-count" hidden><i data-lucide="sliders-horizontal" aria-hidden="true"></i><span id="site-count-text"></span></span>
+        <button class="btn btn-primary" id="new-site" type="button"><i data-lucide="plus" aria-hidden="true"></i>New project</button>
+      </div>
     </div>
 
     <div id="content" aria-live="polite"></div>
@@ -38,6 +30,7 @@
 
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
   <script src="/js/home.js"></script>
 </body>
 </html>

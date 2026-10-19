@@ -11,19 +11,7 @@
   <link rel="stylesheet" href="/css/run.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
-      <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
-      <span class="brand-name">Eval Co-pilot</span>
-    </a>
-    <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
-      <a class="nav-pill" href="/home.html">My projects</a>
-      <span class="nav-pill is-active" id="run-crumb" aria-current="page">Run</span>
-    </nav>
-    <span class="spacer"></span>
-    <span class="user-email" id="user-email"></span>
-    <button type="button" class="btn btn-ghost btn-sm" id="logout">Log out</button>
-  </header>
+  <header class="topbar" id="topbar"></header>
 
   <main class="container" id="app">
     <!-- Filled in by /js/run.js -->
@@ -46,20 +34,22 @@
         <div id="live-progress" hidden></div>
       </div>
       <section id="changed-panel" hidden aria-labelledby="changed-title"></section>
-      <details class="how-to-read card enter" id="how-to-read" style="--i:1" open>
+      <details class="disclosure how-to-read card enter" id="how-to-read" style="--i:1" open>
         <summary>
           <span class="icon-tile"><i data-lucide="lightbulb" aria-hidden="true"></i></span>
-          <span class="htr-title">How to read this</span>
-          <i data-lucide="chevron-down" class="htr-chev" aria-hidden="true"></i>
+          <span class="disclosure-title">How to read this</span>
+          <i data-lucide="chevron-down" class="disclosure-chev" aria-hidden="true"></i>
         </summary>
-        <dl class="key-list">
-          <div><dt>#</dt><dd>The pair's number.</dd></div>
-          <div><dt>What the user does</dt><dd>The thing a visitor tries on your site.</dd></div>
-          <div><dt>Device</dt><dd>We test as a phone and as a laptop.</dd></div>
-          <div><dt>Result</dt><dd>Pass, Fail or Can't test. We can't test when the site blocks us or a check needs your eyes.</dd></div>
-          <div><dt>What the site showed</dt><dd>A short piece of what the site sent back.</dd></div>
-          <div><dt>Why</dt><dd>For every fail, a one-line reason written by the AI.</dd></div>
-        </dl>
+        <div class="disclosure-body">
+          <dl class="key-list">
+            <div><dt>#</dt><dd>The pair's number.</dd></div>
+            <div><dt>What the user does</dt><dd>The thing a visitor tries on your site.</dd></div>
+            <div><dt>Device</dt><dd>We test as a phone and as a laptop.</dd></div>
+            <div><dt>Result</dt><dd>Pass, Fail or Can't test. We can't test when the site blocks us or a check needs your eyes.</dd></div>
+            <div><dt>What the site showed</dt><dd>A short piece of what the site sent back.</dd></div>
+            <div><dt>Why</dt><dd>For every fail, a one-line reason written by the AI.</dd></div>
+          </dl>
+        </div>
       </details>
       <section class="stack enter" style="--i:2" id="results-section" aria-labelledby="results-title">
         <div class="section-head">
@@ -78,6 +68,7 @@
 
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
   <script src="/js/run.js"></script>
 </body>
 </html>

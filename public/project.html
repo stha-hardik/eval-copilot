@@ -11,18 +11,7 @@
   <link rel="stylesheet" href="/css/project.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">
-      <span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>
-      <span class="brand-name">Eval Co-pilot</span>
-    </a>
-    <nav class="nav-pills" id="ctx-nav" aria-label="Where you are">
-      <a class="nav-pill" href="/home.html">My projects</a>
-    </nav>
-    <span class="spacer"></span>
-    <span class="user-email" id="user-email"></span>
-    <button class="btn btn-ghost btn-sm" id="logout" type="button">Log out</button>
-  </header>
+  <header class="topbar" id="topbar"></header>
 
   <main class="container project-page" id="page">
     <div class="stack-lg" aria-busy="true" id="loading" aria-label="Loading your project">
@@ -34,6 +23,7 @@
 
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
   <script src="/js/project.js"></script>
 </body>
 </html>

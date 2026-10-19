@@ -96,3 +96,11 @@
     transform/opacity only, ease-out curves, one signature moment per screen (results rows slide in and
     their status pops as each pair finishes), and `prefers-reduced-motion` turns it all off. The old
     `docs/UIUX_RULES.md` digest is superseded by `docs/REDESIGN.md` where they differ.
+29. **One component system (19 Oct 2026).** Every repeated control is defined once in `app.css` (look +
+    motion) and, when it needs behaviour, once in `public/js/ui.js` (`EC.ui.*`): top bar + tabs, segmented
+    control with a sliding indicator, switch, icon toggle, checkbox, disclosure, menu, pill, stat tile,
+    project card. Spec: `docs/COMPONENTS.md`. The mockup's top-bar tabs, health pill, avatar and stat tiles
+    are now built, but only from real data: tabs link to the current or last opened project / run (disabled
+    until there is one), the health pill reads `/api/health`, and the stats are sums of each project's last
+    run. On phones the tabs move to a bottom tab bar. The ring on the pass-rate tile is the one animation
+    that is not transform/opacity (a tiny SVG stroke).

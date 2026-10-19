@@ -8,6 +8,7 @@
   const projectId = EC.param("id");
   const page = document.getElementById("page");
   const GOAL = 10;
+  const bar = EC.ui.topbar({ page: "project", projectId });
 
   // ---------- State ----------
   const state = {
@@ -95,7 +96,6 @@
   function renderPage() {
     const pr = state.project;
     document.title = pr.name + " · Eval Co-pilot";
-    setNav(pr.name);
     page.innerHTML =
       '<div class="stack-lg">' +
         '<div class="page-head project-head enter" id="head">' + headHtml() + "</div>" +
@@ -113,13 +113,6 @@
     renderRun();
     setupVoice();
     icons();
-  }
-
-  function setNav(name) {
-    const nav = document.getElementById("ctx-nav");
-    if (!nav) return;
-    nav.innerHTML = '<a class="nav-pill" href="/home.html">My projects</a>' +
-      '<span class="nav-pill is-active" aria-current="page">' + esc(name) + "</span>";
   }
 
   function headHtml() {
@@ -143,7 +136,7 @@
       '<div class="head-main">' +
         '<a class="back-link" href="/home.html">' + icon("arrow-left") + "Back to My projects</a>" +
         "<h1>" + esc(pr.name) + "</h1>" +
-        '<a class="site-chip" href="' + esc(safeHref(pr.site_url)) + '" target="_blank" rel="noopener" title="' + esc(pr.site_url) + '">' +
+        '<a class="chip" href="' + esc(safeHref(pr.site_url)) + '" target="_blank" rel="noopener" title="' + esc(pr.site_url) + '">' +
           "<span>" + esc(hostOf(pr.site_url) || pr.site_url) + "</span>" + icon("external-link") + "</a>" +
         "<p class=\"muted\">Up to " + GOAL + " golden pairs. We try each one on your live site as a phone and as a laptop.</p>" +
       "</div>" +
@@ -216,7 +209,7 @@
         "</div>" +
         '<div class="ta-wrap">' +
           '<textarea class="input" id="add-' + name + '" rows="4" placeholder="' + esc(placeholder) + '"></textarea>' +
-          '<button class="icon-btn mic" type="button" data-mic="' + name + '" aria-pressed="false" aria-label="Speak instead of typing" title="Speak instead of typing">' +
+          '<button class="icon-btn icon-toggle is-outline mic" type="button" data-mic="' + name + '" aria-pressed="false" aria-label="Speak instead of typing" title="Speak instead of typing">' +
             icon("mic") + "</button>" +
         "</div>" +
         '<div class="error-msg" data-err="' + name + '" hidden></div>' +
@@ -308,7 +301,7 @@
   function setListening(name, on) {
     const btn = document.querySelector('[data-mic="' + name + '"]');
     const tag = document.querySelector('[data-listen="' + name + '"]');
-    if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+    if (btn) EC.ui.iconToggle.set(btn, on);
     if (tag) tag.hidden = !on;
     const wrap = btn && btn.closest(".ta-wrap");
     if (wrap) wrap.classList.toggle("is-listening", on);
@@ -669,10 +662,8 @@
           '<span class="pair-num">#' + esc(p.position) + "</span>" +
           '<div class="pair-pills">' + pillsHtml(p) + "</div>" +
           '<div class="pair-actions">' +
-            '<label class="switch"><input type="checkbox" role="switch" data-act="approve"' + (p.approved ? " checked" : "") + '>' +
-              '<span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span><span class="switch-label">Approved</span></label>' +
-            '<button class="icon-btn toggle" type="button" data-act="priority" aria-pressed="' + (p.is_priority ? "true" : "false") +
-              '" aria-label="Priority" title="Mark as priority">' + icon("star") + "</button>" +
+            EC.ui.switchHtml({ checked: p.approved, onLabel: "Approved", offLabel: "Not approved", label: "Approved", attrs: 'data-act="approve"' }) +
+            EC.ui.iconToggleHtml({ icon: "star", pressed: p.is_priority, label: "Priority", title: "Mark as priority", attrs: 'data-act="priority"' }) +
             '<button class="icon-btn" type="button" data-act="edit" aria-label="Edit pair ' + esc(p.position) + '" title="Edit">' + icon("pencil") + "</button>" +
           "</div>" +
         "</div>" +
@@ -695,14 +686,34 @@
     return all;
   }
 
-  function filterChipsHtml() {
-    const all = state.pairs.length;
-    const pri = state.pairs.filter((p) => p.is_priority).length;
-    const sug = state.pairs.filter((p) => p.source === "suggested").length;
-    const chip = (key, label, n) =>
-      '<button class="segmented-btn" type="button" data-filter="' + key + '" aria-pressed="' + (state.filter === key ? "true" : "false") + '">' +
-      label + " (" + n + ")</button>";
-    return '<div class="segmented filter-chips" role="group" aria-label="Show">' + chip("all", "All", all) + chip("priority", "Priority", pri) + chip("suggested", "Suggested", sug) + "</div>";
+  // The segmented control is created once and kept, so its indicator can slide between options.
+  const FILTERS = [["all", "All"], ["priority", "Priority"], ["suggested", "Suggested"]];
+  function filterCounts() {
+    return {
+      all: state.pairs.length,
+      priority: state.pairs.filter((p) => p.is_priority).length,
+      suggested: state.pairs.filter((p) => p.source === "suggested").length,
+    };
+  }
+  function updateChips() {
+    const slot = document.getElementById("filter-slot");
+    if (!slot) return;
+    if (state.pairs.length <= 1) { slot.innerHTML = ""; return; }
+    const n = filterCounts();
+    let seg = slot.querySelector(".filter-chips");
+    if (!seg) {
+      slot.innerHTML = '<div class="segmented filter-chips" role="group" aria-label="Show">' +
+        FILTERS.map((f) => '<button class="segmented-btn" type="button" data-value="' + f[0] + '" aria-pressed="' + (state.filter === f[0] ? "true" : "false") + '"></button>').join("") + "</div>";
+      seg = slot.querySelector(".filter-chips");
+      EC.ui.segmented(seg);
+      seg.addEventListener("change", (ev) => { state.filter = ev.detail.value; renderList(false); });
+    }
+    FILTERS.forEach((f) => {
+      const b = seg.querySelector('[data-value="' + f[0] + '"]');
+      if (b) b.textContent = f[1] + " (" + n[f[0]] + ")";
+    });
+    seg._ecSeg.select(state.filter, { silent: true });
+    seg._ecSeg.refresh();
   }
 
   function renderList(animate) {
@@ -712,13 +723,14 @@
     const anyPriority = state.pairs.some((p) => p.is_priority);
     if (state.filter === "priority" && !anyPriority) state.filter = "all";
     if (state.filter === "suggested" && !state.pairs.some((p) => p.source === "suggested")) state.filter = "all";
-    const head =
-      '<div class="list-head">' +
-        '<h2 class="section-title" id="list-title">Your golden pairs' +
-          (c.total ? '<span class="count" id="counter">(' + (c.total <= GOAL ? c.total + " of " + GOAL : c.total) + ")</span>" : "") + "</h2>" +
-        (c.total > 1 ? filterChipsHtml() : "") +
-      "</div>" +
-      (anyPriority && c.total > 1 ? '<p class="small muted order-note">Priority pairs are listed first.</p>' : "");
+    if (!sec.querySelector("#list-body")) {
+      sec.innerHTML = '<div class="list-head"><h2 class="section-title" id="list-title"></h2><div class="filter-slot" id="filter-slot"></div></div>' +
+        '<p class="small muted order-note" id="order-note" hidden>Priority pairs are listed first.</p><div id="list-body"></div>';
+    }
+    document.getElementById("list-title").innerHTML = "Your golden pairs" +
+      (c.total ? '<span class="count" id="counter">(' + (c.total <= GOAL ? c.total + " of " + GOAL : c.total) + ")</span>" : "");
+    document.getElementById("order-note").hidden = !(anyPriority && c.total > 1);
+    updateChips();
     let body;
     if (!c.total) {
       body = '<div class="card empty">' + '<span class="empty-icon">' + icon("list-checks") + "</span>" +
@@ -729,7 +741,7 @@
         ? '<ul class="pair-list">' + list.map((p, i) => pairCardHtml(p, i + 1, animate)).join("") + "</ul>"
         : '<p class="filter-empty">No pairs match this filter.</p>';
     }
-    sec.innerHTML = head + body;
+    document.getElementById("list-body").innerHTML = body;
     icons();
     newPairId = null;
     renderCount();
@@ -739,8 +751,7 @@
   function refreshMeta() {
     renderCount();
     renderRun();
-    const chips = document.querySelector(".filter-chips");
-    if (chips) chips.outerHTML = filterChipsHtml();
+    updateChips();
   }
 
   async function togglePair(id, field, value, focusAct) {
@@ -754,12 +765,19 @@
     } else {
       // priority: flip the star at once, then re-sort after the 220ms feedback
       const star = card() && card().querySelector('[data-act="priority"]');
-      if (star) star.setAttribute("aria-pressed", value ? "true" : "false");
+      if (star) EC.ui.iconToggle.set(star, value);
       refreshMeta();
     }
+    const t0 = Date.now();
     try {
       await EC.api("PATCH", "/api/pairs/" + encodeURIComponent(id), { [field]: value });
-      if (field === "is_priority") { renderList(false); restoreFocus(id, focusAct); }
+      if (field === "is_priority") {
+        // let the star's pop finish (about 300ms) before the list re-sorts
+        const wait = reducedMotion() ? 0 : Math.max(0, 300 - (Date.now() - t0));
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        renderList(false);
+        restoreFocus(id, focusAct);
+      }
     } catch (e) {
       p[field] = old;
       if (field === "approved") {
@@ -835,8 +853,6 @@
   page.addEventListener("click", (ev) => {
     const mic = ev.target.closest("[data-mic]");
     if (mic) { toggleVoice(mic.dataset.mic); return; }
-    const fl = ev.target.closest("[data-filter]");
-    if (fl) { state.filter = fl.dataset.filter; renderList(false); return; }
     const t = ev.target.closest("[data-act]");
     if (!t) return;
     const act = t.dataset.act;
@@ -935,14 +951,6 @@
     }
   });
 
-  // ---------- Top bar ----------
-  (function topbar() {
-    const s = EC.getSession();
-    const who = document.getElementById("user-email");
-    if (who && s && s.user && s.user.email) who.textContent = s.user.email;
-    document.getElementById("logout").addEventListener("click", () => EC.logout());
-  })();
-
   // ---------- Load ----------
   function renderNotFound(msg) {
     page.innerHTML =
@@ -973,6 +981,8 @@
       state.project = data.project;
       state.pairs = data.pairs || [];
       state.runs = data.runs || [];
+      EC.ui.remember({ projectId: state.project.id != null ? state.project.id : projectId, projectName: state.project.name });
+      bar.update({ projectId: state.project.id != null ? state.project.id : projectId, projectName: state.project.name });
       renderPage();
     } catch (e) {
       if (e.status === 404) renderNotFound("We couldn’t find this project.");

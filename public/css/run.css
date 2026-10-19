@@ -1,22 +1,7 @@
 /* Results screen (run.html). "Tactile Calm". Page-specific styles only; the shared look lives in app.css.
    Motion: transform and opacity only. */
 
-/* ---------- Small shared bits (candidates for app.css: .dev-chip, .section-head) ---------- */
-.dev-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px 3px 8px;
-  border-radius: var(--r-pill);
-  background: var(--canvas);
-  box-shadow: var(--inset-xs);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.dev-chip [data-lucide], .dev-chip svg.lucide { width: 14px; height: 14px; }
+/* ---------- Layout bits ---------- */
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; }
 .section-head h2 { font-size: var(--fs-xl); line-height: 32px; letter-spacing: -0.01em; }
 
@@ -49,23 +34,8 @@
 /* ---------- How to read this ---------- */
 .how-to-read.card { padding: var(--space-sm) var(--space-md); }
 @media (min-width: 641px) { .how-to-read.card { padding: var(--space-sm) var(--space-lg); } }
-.how-to-read > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  min-height: 64px;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 600;
-  font-size: var(--fs-l);
-  color: var(--text);
-  border-radius: var(--r-sm);
-}
-.how-to-read > summary::-webkit-details-marker { display: none; }
+.how-to-read > summary { gap: var(--space-md); min-height: 64px; font-size: var(--fs-l); }
 .how-to-read .icon-tile { width: 44px; height: 44px; color: var(--cant-text); }
-.htr-title { flex: 1; min-width: 0; }
-.htr-chev { flex: none; color: var(--muted); transition: transform var(--t-state) var(--ease-out); }
-.how-to-read[open] .htr-chev { transform: rotate(180deg); }
 .key-list { margin: 0; padding: var(--space-xs) 0 var(--space-md); display: grid; gap: var(--space-md); }
 .key-list > div { display: grid; gap: 2px; }
 .key-list dt { font-weight: 700; font-size: var(--fs-m); color: var(--text); }
@@ -117,23 +87,6 @@
   line-clamp: 3;
   overflow: hidden;
 }
-.link-btn {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  padding: var(--space-xs) 0;
-  min-height: 44px;
-  border: 0;
-  background: none;
-  color: var(--accent-strong);
-  font: inherit;
-  font-size: var(--fs-m);
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.link-btn[hidden] { display: none; }
 .status-code { font-size: var(--fs-s); color: var(--muted); }
 
 .rc-side { min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
@@ -153,24 +106,6 @@
 .result-card.is-pending { box-shadow: var(--raise-sm); }
 .result-card.is-pending .rc-title { color: var(--text); }
 
-/* Checks disclosure */
-details.checks > summary {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-sm);
-  min-height: 36px;
-  cursor: pointer;
-  list-style: none;
-  font-size: var(--fs-m);
-  font-weight: 600;
-  color: var(--muted);
-  border-radius: var(--r-sm);
-}
-details.checks > summary::-webkit-details-marker { display: none; }
-details.checks > summary:hover { color: var(--text); }
-details.checks > summary > i, details.checks > summary > svg { width: 16px; height: 16px; transition: transform var(--t-state) var(--ease-out); }
-details.checks[open] > summary > i, details.checks[open] > summary > svg { transform: rotate(90deg); }
 .check-list { list-style: none; margin: var(--space-sm) 0 var(--space-xs); padding: 0; display: grid; gap: var(--space-sm); }
 .check-item { min-width: 0; padding: var(--space-sm); border-radius: var(--r-sm); background: var(--canvas); box-shadow: var(--inset-xs); }
 .check-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); }
@@ -184,7 +119,6 @@ details.checks[open] > summary > i, details.checks[open] > summary > svg { trans
   .rc-side, .rc-checks { grid-column: 1 / -1; }
   .rc-side { padding: var(--space-sm); border-radius: var(--r-sm); background: var(--canvas); box-shadow: var(--inset-sm); }
   .rc-side:empty { display: none; }
-  details.checks > summary { min-height: 44px; }
 }
 
 /* ---------- Things to fix first ---------- */
@@ -345,25 +279,6 @@ details.checks[open] > summary > i, details.checks[open] > summary > svg { trans
 .cmp-a, .cmp-b, .cmp-change { display: flex; justify-content: center; }
 .cmp-arrow { display: none; color: var(--muted); }
 .cmp-arrow [data-lucide], .cmp-arrow svg.lucide { width: 16px; height: 16px; }
-.verdict {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px 4px 10px;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-caps);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  box-shadow: var(--raise-sm);
-  background: var(--canvas);
-  color: var(--muted);
-}
-.verdict [data-lucide], .verdict svg.lucide { width: 14px; height: 14px; }
-.verdict.is-fixed { background: var(--pass-bg); color: var(--pass-text); }
-.verdict.is-broke { background: var(--fail-bg); color: var(--fail-text); }
-
 @media (max-width: 760px) {
   .cmp-cols { display: none; }
   .cmp-row {
@@ -383,3 +298,5 @@ details.checks[open] > summary > i, details.checks[open] > summary > svg { trans
 @media (max-width: 640px) {
   .banner-body a { display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; }
 }
+
+#compare-section { scroll-margin-top: 96px; }

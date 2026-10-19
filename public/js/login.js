@@ -13,14 +13,14 @@
   var submit = document.getElementById("submit");
   var submitLabel = document.getElementById("submit-label");
   var eye = document.getElementById("toggle-password");
-  var tabs = { login: document.getElementById("tab-login"), signup: document.getElementById("tab-signup") };
+  var segEl = document.querySelector(".segmented");
+  var seg = EC.ui.segmented(segEl);
 
   function icons() { if (window.lucide) window.lucide.createIcons(); }
 
   function setMode(next) {
     mode = next;
-    tabs.login.setAttribute("aria-pressed", String(next === "login"));
-    tabs.signup.setAttribute("aria-pressed", String(next === "signup"));
+    seg.select(next, { silent: true }); // the sliding indicator and aria-pressed live in EC.ui.segmented
     hint.hidden = next !== "signup";
     password.setAttribute("autocomplete", next === "signup" ? "new-password" : "current-password");
     submitLabel.textContent = next === "signup" ? "Create account" : "Log in";
@@ -89,8 +89,7 @@
 
   window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
 
-  tabs.login.addEventListener("click", function () { setMode("login"); });
-  tabs.signup.addEventListener("click", function () { setMode("signup"); });
+  segEl.addEventListener("change", function (ev) { setMode(ev.detail.value); });
 
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();

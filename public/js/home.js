@@ -4,22 +4,29 @@
 
   var content = document.getElementById("content");
   var newBtn = document.getElementById("new-site");
-  var session = EC.getSession();
+  var siteChip = document.getElementById("site-count");
 
-  document.getElementById("user-email").textContent = (session && session.user && session.user.email) || "";
-  document.getElementById("logout").addEventListener("click", function () { EC.logout(); });
+  EC.ui.topbar({ page: "home" });
   newBtn.addEventListener("click", function () { openForm(newBtn); });
 
   function icons() { if (window.lucide) window.lucide.createIcons(); }
 
   // ---------- States ----------
+  function setChip(n) {
+    if (n == null) { siteChip.hidden = true; return; }
+    document.getElementById("site-count-text").textContent = n + (n === 1 ? " site" : " sites");
+    siteChip.hidden = false;
+  }
+
   function showLoading() {
+    setChip(null);
     var cards = "";
     for (var i = 0; i < 3; i++) cards += '<li><div class="skeleton skeleton-card"></div></li>';
     content.innerHTML = '<ul class="project-grid" aria-busy="true" aria-label="Loading your projects">' + cards + "</ul>";
   }
 
   function showError(msg) {
+    setChip(null);
     content.innerHTML =
       '<div class="banner banner-error enter" role="alert"><span class="banner-icon"><i data-lucide="circle-alert" aria-hidden="true"></i></span>' +
       '<div class="banner-body"><span>' + EC.esc(msg) + '</span></div><button class="btn btn-secondary btn-sm" id="retry" type="button">Try again</button></div>';
@@ -28,6 +35,7 @@
   }
 
   function showEmpty() {
+    setChip(null);
     content.innerHTML =
       '<div class="card empty enter">' +
       '<span class="empty-icon"><i data-lucide="folder-plus" aria-hidden="true"></i></span>' +
@@ -48,59 +56,119 @@
     return d.toLocaleDateString(undefined, opts);
   }
 
+  // The look of a card is picked from its name, so a project keeps the same icon every time.
+  var CARD_ICONS = ["shopping-bag", "store", "globe", "layout-template", "calendar", "file-text"];
+  function cardIcon(name) {
+    var h = 0, t = String(name || "");
+    for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+    return CARD_ICONS[h % CARD_ICONS.length];
+  }
+
+  // "Today", "Yesterday", or "12 Oct" (calendar days in the reader's time zone)
+  function dayLabel(d) {
+    var now = new Date();
+    var a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var diff = Math.round((a - b) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return shortDate(d.toISOString());
+  }
+
+  // Status pill per card, from last_run only: none -> "Not run yet"; total 0 -> "Review";
+  // all passed -> "All passed"; else "N issues" (N = total - passed).
   function statusPill(p) {
     var r = p.last_run;
-    if (!r) return '<span class="pill pill-neutral">Not run yet</span>';
-    if (!r.total) return '<span class="pill pill-neutral">No results</span>';
-    if (r.passed === r.total) return '<span class="pill pill-pass">All passed</span>';
-    return '<span class="pill pill-fail">' + EC.esc(r.passed + " of " + r.total + " passed") + "</span>";
+    if (!r) return EC.ui.pill("neutral", "Not run yet");
+    if (!r.total) return EC.ui.pill("cant", "Review");
+    if (r.passed === r.total) return EC.ui.pill("pass", "All passed");
+    var n = r.total - r.passed;
+    return EC.ui.pill("fail", n + (n === 1 ? " issue" : " issues"));
   }
 
   function trayHtml(p) {
     var r = p.last_run;
+    var hasResults = !!(r && r.total);
+    var allPass = hasResults && r.passed === r.total;
+    var icon = !hasResults ? "bar-chart-2" : allPass ? "circle-check" : "circle-alert";
+    var tone = !hasResults ? "" : allPass ? " is-pass" : " is-fail";
+    var text, bar;
     if (!r) {
-      return '<div class="run-tray"><span class="run-tray-text">Last run: none yet</span>' +
-        '<div class="progress progress-sm" aria-hidden="true"><div class="progress-fill" style="--p:0"></div></div></div>';
+      text = "Last run: none yet";
+    } else {
+      var parts = ["Run " + r.run_number];
+      if (r.total) parts.push(r.passed + " of " + r.total + " passed");
+      var d = shortDate(r.started_at);
+      if (d) parts.push(d);
+      text = "Last run: " + parts.join(" · ");
     }
-    var parts = ["Run " + r.run_number];
-    if (r.total) parts.push(r.passed + " of " + r.total + " passed");
-    var d = shortDate(r.started_at);
-    if (d) parts.push(d);
-    var bar = "";
-    if (r.total) {
+    if (hasResults) {
       var frac = Math.max(0, Math.min(1, r.passed / r.total));
       bar = '<div class="progress progress-sm" role="progressbar" aria-label="Checks passed" aria-valuemin="0" aria-valuemax="' +
         Number(r.total) + '" aria-valuenow="' + Number(r.passed) + '"><div class="progress-fill ' +
-        (r.passed === r.total ? "is-pass" : "is-fail") + '" style="--p:' + frac.toFixed(4) + '"></div></div>';
+        (allPass ? "is-pass" : "is-fail") + '" style="--p:' + frac.toFixed(4) + '"></div></div>';
+    } else {
+      bar = '<div class="progress progress-sm" aria-hidden="true"><div class="progress-fill" style="--p:0"></div></div>';
     }
-    return '<div class="run-tray"><span class="run-tray-text">Last run: ' + EC.esc(parts.join(" · ")) + "</span>" + bar + "</div>";
+    return '<div class="run-tray"><div class="run-tray-line' + tone + '"><i data-lucide="' + icon + '" aria-hidden="true"></i>' +
+      '<span class="run-tray-text">' + EC.esc(text) + "</span></div>" + bar + "</div>";
   }
 
+  function cardTag(p) {
+    var r = p.last_run;
+    if (!r) return "Not run yet";
+    return r.kind === "changed" ? "Re-run" : "Full run";
+  }
+
+  // Four tiles, every number computed from the projects list (last_run of each project that has one).
+  function statTile(label, valueHtml, sub, iconHtml) {
+    return '<div class="stat"><div><div class="stat-label">' + EC.esc(label) + "</div>" + valueHtml +
+      (sub ? '<div class="stat-sub">' + EC.esc(sub) + "</div>" : "") + "</div>" + iconHtml + "</div>";
+  }
+  function tileIcon(name) { return '<span class="icon-tile"><i data-lucide="' + name + '" aria-hidden="true"></i></span>'; }
   function statsHtml(projects) {
-    var latest = null;
-    projects.forEach(function (p) {
-      var t = p.last_run && p.last_run.started_at ? new Date(p.last_run.started_at) : null;
+    var withRun = projects.filter(function (p) { return p.last_run; });
+    var passed = 0, total = 0, latest = null;
+    withRun.forEach(function (p) {
+      passed += Number(p.last_run.passed) || 0;
+      total += Number(p.last_run.total) || 0;
+      var t = p.last_run.started_at ? new Date(p.last_run.started_at) : null;
       if (t && !isNaN(t.getTime()) && (!latest || t > latest)) latest = t;
     });
-    var when = latest ? shortDate(latest.toISOString()) : "No runs yet";
-    return '<div class="stats enter" style="--i:1">' +
-      '<div class="stat"><div><div class="stat-label">Projects</div><div class="stat-value">' + projects.length + '</div></div>' +
-        '<span class="icon-tile"><i data-lucide="layout-grid" aria-hidden="true"></i></span></div>' +
-      '<div class="stat"><div><div class="stat-label">Most recent run</div><div class="stat-value">' + EC.esc(when) + '</div></div>' +
-        '<span class="icon-tile"><i data-lucide="history" aria-hidden="true"></i></span></div>' +
-      "</div>";
+    var none = !withRun.length;
+    var noRuns = none ? "No runs yet" : "";
+    var dash = '<div class="stat-value">—</div>';
+    var noResults = !none && !total ? "No results yet" : noRuns;
+
+    var rate = total ? passed / total : null;
+    var ring = '<span class="icon-tile is-ring"><svg class="ring" viewBox="0 0 36 36" aria-hidden="true">' +
+      '<circle class="ring-track" cx="18" cy="18" r="14"></circle>' +
+      (rate ? '<circle class="ring-arc" cx="18" cy="18" r="14" pathLength="100" style="--p:' + (rate * 100).toFixed(2) + '"></circle>' : "") +
+      "</svg></span>";
+    var t1 = statTile("Pass rate", rate == null ? dash : '<div class="stat-value">' + (rate * 100).toFixed(1) + "%</div>", noResults, ring);
+    var t2 = statTile("Passing results", none || !total ? dash : '<div class="stat-value">' + passed + " / " + total + "</div>", noResults, tileIcon("shield-check"));
+    var bad = total - passed;
+    var attn;
+    if (none || !total) attn = dash;
+    else if (bad > 0) attn = '<div class="stat-value is-fail">' + bad + (bad === 1 ? " item" : " items") + "</div>";
+    else attn = '<div class="stat-value is-pass">Nothing</div>';
+    var t3 = statTile("Needs attention", attn, noResults, tileIcon("circle-alert"));
+    var t4 = statTile("Last run", latest ? '<div class="stat-value">' + EC.esc(dayLabel(latest)) + "</div>" : dash, latest ? "" : "No runs yet", tileIcon("history"));
+    return '<div class="stats enter" style="--i:1">' + t1 + t2 + t3 + t4 + "</div>";
   }
 
   function showList(projects) {
+    setChip(projects.length);
     var cards = projects.map(function (p, idx) {
       var href = "/project.html?id=" + encodeURIComponent(p.id);
       return '<li class="enter" style="--i:' + (idx + 2) + '"><article class="project-card" data-href="' + EC.esc(href) + '">' +
-        '<div class="project-card-top"><span class="icon-tile"><i data-lucide="globe" aria-hidden="true"></i></span>' + statusPill(p) + "</div>" +
+        '<div class="project-card-top"><span class="icon-tile"><i data-lucide="' + cardIcon(p.name) + '" aria-hidden="true"></i></span>' + statusPill(p) + "</div>" +
         '<div class="project-info"><h2 class="project-name">' + EC.esc(p.name) + "</h2>" +
           '<a class="project-link" href="' + EC.esc(p.site_url) + '" target="_blank" rel="noopener" title="' + EC.esc(p.site_url) + '">' +
-          "<span>" + EC.esc(p.site_url) + '</span><i data-lucide="external-link" aria-hidden="true"></i></a></div>' +
+          "<span>" + EC.esc(p.site_url) + '</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>' +
         trayHtml(p) +
-        '<div class="project-card-foot"><a class="btn btn-secondary btn-sm" href="' + EC.esc(href) + '" aria-label="Open ' + EC.esc(p.name) + '">Open<i data-lucide="chevron-right" aria-hidden="true"></i></a></div>' +
+        '<div class="project-card-foot"><span class="label-caps">' + EC.esc(cardTag(p)) + "</span>" +
+          '<a class="btn btn-secondary btn-sm" href="' + EC.esc(href) + '" aria-label="Open ' + EC.esc(p.name) + '">Open<i data-lucide="chevron-right" aria-hidden="true"></i></a></div>' +
         "</article></li>";
     }).join("");
     var tile = '<li class="enter" style="--i:' + (projects.length + 2) + '"><button class="add-tile" id="add-tile" type="button">' +
