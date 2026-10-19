@@ -280,4 +280,15 @@ details.checks[open] > summary > i, details.checks[open] > summary > svg { trans
   table.table.results td.is-empty { display: none; }
   .check-line .pill:not(.by) { margin-left: 0; }
   .point { gap: var(--s3); }
+
+  table.table.compare-table td.c-num[data-label]::before,
+  table.table.compare-table td.c-does[data-label]::before { display: none; }
+  table.table.compare-table td.c-num { padding-bottom: 0; }
+  table.table.compare-table td.c-does { padding-top: 0; padding-bottom: var(--s2); font-weight: var(--fw-strong); }
+  table.table.compare-table td:not(.c-num):not(.c-does) {
+    display: inline-block;
+    width: auto;
+    vertical-align: top;
+    margin-right: var(--s4);
+  }
 }
