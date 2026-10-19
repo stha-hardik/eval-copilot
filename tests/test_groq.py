@@ -56,6 +56,23 @@ def test_chat_json_retries_once_then_succeeds():
     assert p.call_count == 2
 
 
+def test_chat_json_waits_when_rate_limited_then_retries():
+    limited = reply(None, status=429)
+    limited.headers = {"retry-after": "1.5"}
+    with post(limited, reply({"ok": True})) as p, patch("api._lib.groq.time.sleep") as sleep:
+        assert groq.chat_json("s", "u") == {"ok": True}
+    assert p.call_count == 2
+    assert sleep.call_args.args[0] == pytest.approx(1.5, abs=0.1)
+
+
+def test_chat_json_rate_limit_wait_stays_inside_budget():
+    limited = reply(None, status=429)
+    limited.headers = {"retry-after": "20"}
+    with post(limited, reply({"ok": True})), patch("api._lib.groq.time.sleep") as sleep:
+        groq.chat_json("s", "u", timeout=10)
+    assert sleep.call_args.args[0] <= 7
+
+
 def test_chat_json_retries_once_then_raises():
     with post(reply(None, status=500), reply(None, raw="not json")) as p:
         with pytest.raises(GroqError, match="didn't answer"):

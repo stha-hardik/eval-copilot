@@ -79,6 +79,39 @@ def test_strip_html_broken():
     assert site.strip_html("") == ""
 
 
+def test_strip_html_drops_label_unavailable():
+    """Shopify Dawn puts 'sold out' text in every swatch; CSS shows it only when really unavailable."""
+    def swatch(i, colour):
+        return (
+            f'<label for="main-1-{i}" title="{colour}" class="swatch-input__label">'
+            '<span class="swatch" style="--swatch--background: rgb(0 0 0);"></span>'
+            f'<span class="visually-hidden">{colour}</span>'
+            '<span class="visually-hidden label-unavailable">Variant sold out or unavailable</span>'
+            "</label>"
+        )
+    html = "<fieldset>Color: " + "".join(swatch(i, c) for i, c in enumerate(["Black", "Rust Red", "Sand"])) + "</fieldset>"
+    text = site.strip_html(html)
+    assert "Black" in text and "Rust Red" in text and "Sand" in text
+    assert "sold out or unavailable" not in text
+
+
+def test_strip_html_label_unavailable_nested_and_after():
+    html = (
+        '<p>Before</p><span class="a label-unavailable b">Gone <span>inner</span> <b>bold</b> still gone</span>'
+        "<span>After</span><div>Later</div>"
+    )
+    text = site.strip_html(html)
+    assert "Gone" not in text and "inner" not in text and "bold" not in text and "still gone" not in text
+    assert "Before" in text and "After" in text and "Later" in text
+    # only a whole class token counts
+    assert "kept" in site.strip_html('<span class="not-label-unavailable">kept</span>')
+
+
+def test_strip_html_keeps_plain_visually_hidden():
+    text = site.strip_html('<label><span class="visually-hidden">Black</span></label>')
+    assert text == "Black"
+
+
 def test_full_url():
     assert site.full_url("https://a.com/", "/search?q=x") == "https://a.com/search?q=x"
     assert site.full_url("https://a.com//", "/cart.js") == "https://a.com/cart.js"

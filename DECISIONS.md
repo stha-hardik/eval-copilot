@@ -77,3 +77,11 @@
     headings (Dimensions, Lumen, Charging time, Runtime, Warranty) and ask the AI the rest.
 25. **Local tests need Python 3.10+.** The code uses `X | None` type hints (Vercel runs Python 3.12). On a
     Mac whose `python3` is 3.9, make a 3.12 venv first (e.g. `uv venv --python 3.12`).
+26. **Hidden Shopify "sold out" labels are ignored when reading a page.** Shopify's Dawn theme puts a hidden
+    "Variant sold out or unavailable" label on every colour and only shows it (with CSS) when that colour
+    really is sold out. The page reader kept it, so in Run 1 the AI said Sand and Rust Red were sold out
+    when all three colours were in stock. The reader now drops `label-unavailable` elements.
+27. **Waiting when Groq says "too many requests".** The free Groq plan allows about 8,000 tokens a minute.
+    In Run 1 one AI check (#10 phone) came back "AI could not judge" because both tries hit that limit
+    back to back. On a 429 the server now waits as long as Groq asks (inside the time budget) before
+    the retry.

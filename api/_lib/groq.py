@@ -135,8 +135,25 @@ def _parse_json(content: str) -> dict:
     return data
 
 
+class _RateLimited(Exception):
+    """Groq said "too many requests"; `wait` is how long it asked us to wait (seconds)."""
+
+    def __init__(self, wait: float) -> None:
+        super().__init__(f"Groq rate limit, wait {wait}s")
+        self.wait = wait
+
+
+def _retry_after(resp: Any) -> float:
+    try:
+        return max(0.5, min(float(resp.headers.get("retry-after") or 2), 20))
+    except (TypeError, ValueError, AttributeError):
+        return 2.0
+
+
 def _call_once(headers: dict, payload: dict, timeout: float) -> dict:
     resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=timeout)
+    if resp.status_code == 429:
+        raise _RateLimited(_retry_after(resp))
     if resp.status_code >= 400:
         raise RuntimeError(f"Groq answered {resp.status_code}")
     return _parse_json(resp.json()["choices"][0]["message"]["content"])
@@ -166,6 +183,11 @@ def chat_json(system: str, user: str, max_tokens: int = 1500, timeout: float = T
             break
         try:
             return _call_once(headers, payload, min(left, TIMEOUT_SECONDS))
+        except _RateLimited as limited:
+            # The free Groq plan allows ~8,000 tokens a minute: wait as asked, if the budget allows.
+            pause = min(limited.wait, deadline - time.monotonic() - 3)
+            if pause > 0:
+                time.sleep(pause)
         except Exception:  # timeout, HTTP error, bad JSON: all get one retry
             continue
     raise GroqError("The AI didn't answer. Please try again.")

@@ -60,12 +60,20 @@ class _TextParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.skip = 0
+        self.hidden_tag = ""  # tag name of the open label-unavailable element, if any
+        self.hidden_depth = 0
         self.in_title = False
         self.title_done = False
         self.title_parts: list[str] = []
         self.parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.hidden_tag:
+            if tag == self.hidden_tag:
+                self.hidden_depth += 1
+        elif "label-unavailable" in (dict(attrs).get("class") or "").split():
+            # Shopify only shows this label via CSS when a variant is sold out
+            self.hidden_tag, self.hidden_depth = tag, 1
         if tag in _SKIP_TAGS:
             self.skip += 1
         elif tag == "title" and not self.skip and not self.title_done:
@@ -74,6 +82,10 @@ class _TextParser(HTMLParser):
             self.parts.append(" ")
 
     def handle_endtag(self, tag: str) -> None:
+        if self.hidden_tag and tag == self.hidden_tag:
+            self.hidden_depth -= 1
+            if not self.hidden_depth:
+                self.hidden_tag = ""
         if tag in _SKIP_TAGS:
             self.skip = max(0, self.skip - 1)
         elif tag == "title" and self.in_title:
@@ -83,7 +95,7 @@ class _TextParser(HTMLParser):
             self.parts.append(" ")
 
     def handle_data(self, data: str) -> None:
-        if self.skip:
+        if self.skip or self.hidden_tag:
             return
         if self.in_title:
             self.title_parts.append(data)
