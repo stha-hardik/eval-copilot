@@ -540,7 +540,7 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, session
             if v.get("confident") and isinstance(v.get("passed"), bool):
                 decided[c["id"]] = {"passed": v["passed"], "why": v["why"]}
             else:
-                decided[c["id"]] = {"passed": None, "why": VISION_UNSURE}
+                decided[c["id"]] = {"passed": None, "why": v.get("why") if v.get("why") == groq.AI_BUSY else VISION_UNSURE}
                 handed_over = True
 
     rows = [{"check_id": c["id"], **decided[c["id"]]} for c in checks if c["id"] in decided]

@@ -267,11 +267,11 @@ def test_429_wait_never_runs_past_the_time_budget():
     assert sleep.call_args.args[0] <= 2.5
 
 
-def test_429_twice_ends_unsure_without_raising():
+def test_429_until_the_cap_ends_busy_without_raising():
     limited = lambda: reply(status=429, headers={"retry-after": "1"})  # noqa: E731
-    with post(limited(), limited()) as p, patch("api._lib.groq.time.sleep"):
+    with post(*[limited() for _ in range(5)]) as p, patch("api._lib.groq.time.sleep"):
         out = groq.judge_screenshot(SHOT, PAIR, checks("a"), "phone")
-    assert p.call_count == 2 and out["a"] == unsure("a")
+    assert p.call_count == 5 and out["a"]["passed"] is None and out["a"]["why"] == groq.AI_BUSY
 
 
 # ---------------------------------------------------------------- odd model output
@@ -315,3 +315,24 @@ def test_before_and_after_too_big_together_sends_only_after():
     system, parts = _parts(p.call_args)
     assert len(parts) == 2 and parts[1]["image_url"]["url"].endswith(half) and "TWO screenshots" not in system
     assert out["a"]["confident"] is True
+
+
+def test_judge_screenshot_rate_limit_does_not_use_up_a_try(monkeypatch):
+    calls = []
+    def fake(key, shot, text, timeout, before=None, clicked=None):
+        calls.append(1)
+        if len(calls) <= 2:
+            raise groq._RateLimited(0.01)
+        return {"results": [{"id": "c", "passed": True, "why": "lamp glowing", "confident": True}]}
+    monkeypatch.setattr(groq, "_vision_call", fake)
+    out = groq.judge_screenshot("AAAA", {}, [{"id": "c", "expected": "lit?"}], "phone", timeout=20)
+    assert out["c"] == {"passed": True, "why": "lamp glowing", "confident": True}
+    assert len(calls) == 3
+
+
+def test_judge_screenshot_says_busy_when_rate_limited_to_the_end(monkeypatch):
+    def fake(*a, **k):
+        raise groq._RateLimited(30)
+    monkeypatch.setattr(groq, "_vision_call", fake)
+    out = groq.judge_screenshot("AAAA", {}, [{"id": "c", "expected": "lit?"}], "phone", timeout=6)
+    assert out["c"]["passed"] is None and out["c"]["why"] == groq.AI_BUSY

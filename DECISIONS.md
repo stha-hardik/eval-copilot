@@ -167,3 +167,10 @@
     before the shopper clicked X, image 2 just after") and judges the after state. If both images together are too
     big, it gets the after image only. Screenshots are still never stored. Tested live: #7 laptop and phone, and #1
     phone, went from "not sure" to a confident pass.
+46. **Three fixes found by Run 9 (20 Oct 2026).** (a) On phones the before/after framing left the "Add to cart" button
+    under Bubl's sticky bottom bar, so the click missed (cart 0, and #10 then reached an empty checkout). The browser
+    now always scrolls the button to the middle of the screen before clicking (as before), and framing keeps clear of
+    sticky bottom bars. (b) Groq's free plan often answers image requests with "too many requests"; that used to use up
+    one of the two tries and end as "the AI wasn't sure". Waiting now doesn't use up a try (max 4 waits, inside the time
+    budget), and if Groq is still busy the check says so: "The AI was busy (too many requests), a person needs to check
+    this". (c) The before/after instructions tell the AI that small visible changes (a glow, a label that changed) count.

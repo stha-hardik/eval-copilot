@@ -89,6 +89,14 @@ export default async function ({ page, context }) {
       if ((s.position === "fixed" || s.position === "sticky") && r.top <= 4 && r.bottom > 0 && r.width > innerWidth * 0.5 && r.height < vh * 0.3) head = Math.max(head, r.bottom);
     }
     head = head > 0 ? head + 8 : 100;
+    // Sticky bars at the bottom (e.g. a phone "Add to cart" bar) cover the page too: keep the element above them.
+    let foot = 0;
+    for (const n of document.querySelectorAll("body *")) {
+      const s = getComputedStyle(n);
+      if (s.position !== "fixed" && s.position !== "sticky") continue;
+      const r = n.getBoundingClientRect();
+      if (r.bottom >= vh - 4 && r.top > vh * 0.6 && r.width > innerWidth * 0.5 && r.height > 0) foot = Math.max(foot, vh - r.top);
+    }
     const hasMedia = (n) => [...n.querySelectorAll("img, picture, video, canvas")].some((m) => { const r = m.getBoundingClientRect(); return r.width > 60 && r.height > 60; });
     let ctx = e;
     for (let n = e.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
@@ -97,7 +105,7 @@ export default async function ({ page, context }) {
     const el = abs(e), box = abs(ctx);
     let y = box.top - head;
     y = Math.min(y, el.top - head);          // the element stays below the header
-    y = Math.max(y, el.bottom - vh + 12);    // and above the bottom edge
+    y = Math.max(y, el.bottom - vh + foot + 12);    // and above the bottom edge (and any bottom bar)
     y = Math.max(0, Math.min(y, document.documentElement.scrollHeight - vh));
     window.scrollTo({ top: y, behavior: "instant" });
     e.setAttribute("data-ec-target", "1");
@@ -143,9 +151,9 @@ export default async function ({ page, context }) {
           await sleep(400);  // lazy images
           out.shotBefore = await page.screenshot({ type: "jpeg", quality: 55, encoding: "base64" });
           out.clicked = label.slice(0, 80);
-        } else {
-          await el.evaluate((e) => e.scrollIntoView({ block: "center" }));
         }
+        // Click from the middle of the screen, as a shopper would, so no sticky bar sits on top of the button.
+        await el.evaluate((e) => e.scrollIntoView({ block: "center" }));
         // If the click opens a new page (e.g. "Check out"), wait for it to load before the guard looks.
         let navigating = false;
         const onRequest = (r) => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) navigating = true; };

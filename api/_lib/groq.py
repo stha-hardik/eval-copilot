@@ -20,6 +20,7 @@ MAX_EXPECTED = 300
 MAX_WHY = 200
 MAX_EXPLANATION = 600
 AI_UNSURE = "AI could not judge, please look"
+AI_BUSY = "The AI was busy (too many requests), a person needs to check this"
 
 CODE_RULES = {"status_ok", "text_has", "text_absent", "count_equals", "min_results"}
 BROWSER_RULES = {"browser_count", "ai_vision"}
@@ -430,7 +431,10 @@ Shape:
 VISION_BEFORE_AFTER = """
 You get TWO screenshots. Image 1 was taken just before the shopper clicked "{clicked}" and image 2 just after. Judge every
 check about the AFTER state (image 2). Use image 1 only to see what changed (for example a lamp that was off is now
-glowing, or a menu that was closed is now open)."""
+glowing, or a menu that was closed is now open). Compare the two carefully: a change can be small (a soft glow, a
+label that now reads differently, a highlighted option). If you can point to a visible difference or a visible label
+that answers the check, you are confident; say what you compared in "why". Only say confident: false when the thing
+the check asks about is not in image 2 at all, or is cut off, covered or blurry."""
 
 
 def _vision_call(key: str, shot_b64: str, text: str, timeout: float, before_b64: str | None = None,
@@ -474,7 +478,8 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
         before_b64 = None  # too big together: just the after picture
     deadline = time.monotonic() + timeout
     todo = list(checks)
-    for _ in range(2):
+    asked, waits, busy = 0, 0, False
+    while asked < 2 and waits <= 4:  # two real answers at most; waiting out "too many requests" doesn't use one up
         left = deadline - time.monotonic()
         if not todo or left < 4:
             break
@@ -484,13 +489,18 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
         try:
             data = _vision_call(key, shot_b64, text, min(left, TIMEOUT_SECONDS), before_b64, clicked)
         except _RateLimited as limited:
+            busy, waits = True, waits + 1
             pause = min(limited.wait, deadline - time.monotonic() - 4)
-            if pause > 0:
-                time.sleep(pause)
+            if pause <= 0:
+                break
+            time.sleep(pause)
             continue
         except Exception as err:  # e.g. a retired model answers 404: say so in the logs instead of failing silently
             print(f"[vision] {VISION_MODEL} failed: {type(err).__name__}: {str(err)[:120]}", flush=True)
+            asked += 1
             continue
+        asked += 1
+        busy = False
         answers = {str(r.get("id")): r for r in (data.get("results") or []) if isinstance(r, dict)}
         still = []
         for c in todo:
@@ -503,4 +513,8 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
             else:
                 still.append(c)
         todo = still
+    if busy and todo:  # Groq kept saying "too many requests": say that, not "the AI wasn't sure"
+        print(f"[vision] {VISION_MODEL} busy: rate limited until the time ran out", flush=True)
+        for c in todo:
+            out[c["id"]] = {"passed": None, "why": AI_BUSY, "confident": False}
     return out
