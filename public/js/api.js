@@ -55,7 +55,7 @@
     if (r.status === 401 && !retried && !path.startsWith("/api/login") && !path.startsWith("/api/signup")) {
       if (await refresh()) return api(method, path, body, true);
       clearSession();
-      location.href = "/?next=" + encodeURIComponent(location.pathname + location.search);
+      location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search);
       throw new ApiError(401, "Please log in again.");
     }
     let data = null;
@@ -73,7 +73,7 @@
   // Pages that need a login call requireLogin() first.
   function requireLogin() {
     if (!current()) {
-      location.href = "/?next=" + encodeURIComponent(location.pathname + location.search);
+      location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search);
       return false;
     }
     return true;

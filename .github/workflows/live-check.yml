@@ -6,7 +6,7 @@ on:
     paths: ["api/_lib/browser_fn.mjs", "scripts/live/fn_harness.mjs"]
   workflow_dispatch:
     inputs:
-      task: { description: "harness or live", default: "harness" }
+      task: { description: "harness, live or landing", default: "harness" }
 permissions:
   contents: write
 jobs:
@@ -35,3 +35,18 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -q requests
       - run: python scripts/live/m7_live.py
+  landing:
+    if: inputs.task == 'landing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm init -y > /dev/null && npm i -s playwright@1.48.2 && npx playwright install --with-deps chromium
+      - run: node scripts/live/landing_live.mjs
+      - name: Share screenshots on a scratch branch
+        if: always()
+        run: |
+          git config user.name "live-check" && git config user.email "live-check@users.noreply.github.com"
+          git checkout --orphan landing-shots && git rm -rfq --cached . && git add -f shots && git commit -qm "Landing screenshots" && git push -fq origin landing-shots

@@ -2,6 +2,14 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/login.html"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     }
