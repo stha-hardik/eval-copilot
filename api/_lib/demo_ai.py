@@ -13,7 +13,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEMO_MODEL = "openai/gpt-oss-20b"
 MAX_INPUT = 300
 
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 FACTS = """Products (all prices in Indian rupees, taxes included, free shipping):
 - Solaris: solar table lamp. Price ₹1,680 (was ₹2,940). Colours: Black, Sand, Rust Red. Runtime 7 h on max,
