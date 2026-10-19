@@ -279,9 +279,6 @@ def test_run_never_raises_on_odd_bodies(net):
         assert isinstance(s, browser.Session)
 
 
-@pytest.mark.xfail(reason="BUG(low): run() raises AttributeError when Browserless answers {\"data\": null} or "
-                          "{\"data\": \"text\"} (browser.py:187-188 only guards the outer body); the docstring says it "
-                          "never raises. Fix: after unwrapping, `if not isinstance(data, dict): data = {}`")
 @pytest.mark.parametrize("body", [{"data": None}, {"data": "oops"}, {"data": [1]}])
 def test_run_never_raises_when_data_is_not_an_object(net, body):
     r = MagicMock()
@@ -398,27 +395,28 @@ def test_token_is_only_in_the_query_params_not_the_body(net):
 # ================================================================ Session
 
 def test_note_starts_with_real_browser_and_is_short():
-    assert browser.Session(device="phone").note() == "Real browser"
+    assert browser.Session(device="phone").note() == ""  # no browser ran: never claim one
+    assert browser.Session(device="phone", ran=True).note() == "Real browser"
     cart = {"item_count": 1, "currency": "EUR", "total_price": 7900,
             "items": [{"product_title": "Solaris", "quantity": 1, "final_price": 7900}]}
-    s = browser.Session(device="phone", notes=["opened /", "clicked Sand"], cart=cart)
+    s = browser.Session(ran=True, device="phone", notes=["opened /", "clicked Sand"], cart=cart)
     note = s.note()
     assert note.startswith("Real browser") and "clicked Sand" in note and "Cart has 1 item" in note
 
 
 def test_note_is_never_over_500_characters():
-    s = browser.Session(device="laptop", notes=["n" * 300 for _ in range(10)],
+    s = browser.Session(ran=True, device="laptop", notes=["n" * 300 for _ in range(10)],
                         cart={"item_count": 9, "items": [{"product_title": "P" * 400, "quantity": 9}]})
     assert len(s.note()) <= 500 and s.note().startswith("Real browser")
 
 
 def test_note_uses_at_most_six_notes():
-    s = browser.Session(device="phone", notes=[f"step{i}" for i in range(10)])
+    s = browser.Session(ran=True, device="phone", notes=[f"step{i}" for i in range(10)])
     assert "step5" in s.note() and "step6" not in s.note()
 
 
 def test_note_has_no_screenshot_data():
-    s = browser.Session(device="phone", shot="SECRETSHOTDATA", notes=["opened /"])
+    s = browser.Session(ran=True, device="phone", shot="SECRETSHOTDATA", notes=["opened /"])
     assert "SECRETSHOTDATA" not in s.note()
 
 
@@ -523,10 +521,6 @@ def test_click_needs_something_to_click(bad):
         browser.clean_steps([{"click": bad}])
 
 
-@pytest.mark.xfail(reason="BUG: a click of just 'text=' or 'css=' is accepted (browser.py:113-116). In browser_fn.mjs "
-                          "target('text=') has want='' and `name.includes('')` is true for every element, so it presses the "
-                          "FIRST button/link on the page; fix: after adding the prefix, require a non-empty value "
-                          "(`if not what.split('=', 1)[1].strip(): raise ValueError('Say what to click...')`)")
 @pytest.mark.parametrize("bad", ["text=", "text=   ", "css=", "css=  "])
 def test_click_with_an_empty_target_after_the_prefix_is_rejected(bad):
     with pytest.raises(ValueError):
@@ -556,25 +550,18 @@ def test_unknown_action_is_rejected(bad):
         browser.clean_steps([bad])
 
 
-@pytest.mark.xfail(reason="BUG: clean_steps() lets TypeError escape for a non-numeric scroll (browser.py:129), "
-                          "so door 6/7 answer 500 instead of 400; fix: wrap int() in try/except (TypeError, ValueError) "
-                          "and raise ValueError('Scroll must be bottom or a number.')")
 @pytest.mark.parametrize("bad", [[1], {"y": 1}])
 def test_scroll_with_a_list_or_object_is_a_value_error(bad):
     with pytest.raises(ValueError):
         browser.clean_steps([{"scroll": bad}])
 
 
-@pytest.mark.xfail(reason="BUG: a text scroll like 'abc' raises the raw Python message \"invalid literal for int()\" "
-                          "(browser.py:129) which door 6/7 show to the builder; fix as above with a plain message")
 def test_scroll_text_error_is_in_plain_words():
     with pytest.raises(ValueError) as e:
         browser.clean_steps([{"scroll": "abc"}])
     assert "invalid literal" not in str(e.value)
 
 
-@pytest.mark.xfail(reason="BUG(low): FORBIDDEN misses hyphenated 'Log-in' / 'Sign-in' / 'Sign-up' (browser.py:28-29, "
-                          "regex is 'log ?in' with an optional SPACE only); fix: use '(log|sign)[ -]?(in|up)'")
 @pytest.mark.parametrize("label", ["Log-in", "Sign-in", "Sign-up"])
 def test_hyphenated_login_and_signup_clicks_are_forbidden(label):
     with pytest.raises(ValueError):

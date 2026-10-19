@@ -478,7 +478,7 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
         for c in todo:
             a = answers.get(str(c["id"]), {})
             passed = a.get("passed") if isinstance(a.get("passed"), bool) else None
-            confident = a.get("confident") is not False and passed is not None
+            confident = a.get("confident") is True and passed is not None
             if confident:
                 out[c["id"]] = {"passed": passed, "why": _one_line(a.get("why")) or "Judged from the screenshot.",
                                 "confident": True}

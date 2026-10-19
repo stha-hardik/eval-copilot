@@ -196,3 +196,10 @@ from the API (see `public/js/home.js`).
 ## Copy
 Plain words, no jargon: say "link" not "URL", "check" not "assertion", "phone" / "laptop" not "device / UA".
 Friendly, short. Example: "The site blocked us, so we can't test this."
+
+## M7: real browser
+- Check tags (`EC.ui.checkTag`): **Code**, **AI**, **Real browser** (`.pill-browser`, globe icon; for `browser_count` and
+  `ai_vision`) and **You check** (only a legacy `manual` check or a check handed to a person at run time).
+- `EC.ui.stepsText(steps)` writes a check's browser steps in plain words ("Opens /products/solaris → clicks “Sand”").
+- Results rows: a "Real browser" badge when `via` is "browser"; a "You check" badge plus the `human_reason` note when
+  `via` is "human".

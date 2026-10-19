@@ -125,9 +125,11 @@ def test_ids_may_be_non_strings_and_keep_their_own_type():
     assert out[7]["passed"] is True
 
 
-def test_missing_confident_field_counts_as_confident():
+def test_missing_confident_field_is_not_trusted():
+    # Only an explicit confident: true counts; anything else is asked again, then handed to a person.
     with post(reply([answer("a", True, "ok", confident=None)])):
-        assert groq.judge_screenshot(SHOT, PAIR, checks("a"), "phone")["a"]["confident"] is True
+        out = groq.judge_screenshot(SHOT, PAIR, checks("a"), "phone")["a"]
+    assert out["confident"] is False and out["passed"] is None
 
 
 def test_missing_why_gets_a_default_and_long_why_is_cut():
@@ -274,10 +276,6 @@ def test_429_twice_ends_unsure_without_raising():
 
 # ---------------------------------------------------------------- odd model output
 
-@pytest.mark.xfail(reason="BUG(low): groq.py:481 treats `confident` as sure unless it is the boolean False, so a model "
-                          "answer of \"confident\": \"false\" (string) or 0 is accepted as confident and a guess is "
-                          "shown as a verdict; fix: `confident = passed is not None and a.get(\"confident\", True) "
-                          "not in (False, 0, \"false\", \"False\", \"no\")`")
 @pytest.mark.parametrize("value", ["false", "False", 0])
 def test_confident_given_as_text_or_zero_is_not_trusted(value):
     one = lambda: reply([answer("a", True, "guess", confident=value)])  # noqa: E731

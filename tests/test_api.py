@@ -48,7 +48,7 @@ PAIR = {"id", "project_id", "position", "user_does", "good_result", "request_url
 CHECK = {"id", "decided_by", "rule", "expected"}  # docs list these four; the API may send more
 ROW = {"result_id", "run_id", "pair_id", "position", "user_does", "good_result", "is_priority", "device",
        "status_code", "outcome", "what_site_said", "why", "checks", "via", "human_reason"}
-CHECK_RESULT = {"id", "check_id", "decided_by", "rule", "expected", "passed", "why"}
+CHECK_RESULT = {"id", "check_id", "decided_by", "rule", "expected", "steps", "passed", "why"}
 POINT = {"rank", "result_id", "pair_id", "position", "user_does", "device", "explanation", "what_site_said"}
 CHANGED = {"pair_id", "position", "user_does", "note", "phone", "laptop", "good_now"}
 SESSION = {"access_token", "refresh_token", "expires_at", "user"}
@@ -92,7 +92,7 @@ def check_row(row: dict):
     else:
         assert row["why"]
     for c in row["checks"]:
-        assert set(c) == CHECK_RESULT
+        assert set(c) == CHECK_RESULT  # rows carry the check's steps (docs/API.md CheckResult)
         assert c["passed"] in (True, False, None) and isinstance(c["why"], str)
 
 
@@ -1228,7 +1228,7 @@ def test_answer_manual_check_true_then_409(api, world, ran):
     body = resp.json()
     assert set(body) == {"check"} and set(body["check"]) == CHECK_RESULT
     assert body["check"] == {"id": manual["id"], "check_id": manual["check_id"], "decided_by": "human",
-                             "rule": "manual", "expected": "Do the product photos look right?", "passed": True,
+                             "rule": "manual", "expected": "Do the product photos look right?", "steps": None, "passed": True,
                              "why": "You said it looks right."}
     assert err(api.patch(f"/api/result-checks/{manual['id']}", {"passed": False}), 409) == \
         "This check already has an answer."

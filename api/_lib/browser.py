@@ -26,7 +26,7 @@ VIEWPORTS = {
 }
 # Never press these: they could pay, place an order, log in, or sign up / hand over details.
 FORBIDDEN = (r"\b(pay|pay now|place order|complete order|confirm order|submit order|buy it now|buy now|"
-             r"log ?in|sign ?in|sign ?up|register|create account|subscribe|unlock|spin)\b")
+             r"(log|sign)[ -]?(in|on|up)|register|create account|subscribe|unlock|spin)\b")
 _JS = (Path(__file__).with_name("browser_fn.mjs")).read_text(encoding="utf-8")
 
 HUMAN = {
@@ -77,6 +77,7 @@ class Session:
     notes: list[str] = field(default_factory=list)
     human_reason: str | None = None
     error: str | None = None
+    ran: bool = False  # a hosted browser really opened (this is what uses Browserless units)
 
     def as_reply(self) -> site.SiteReply:
         """The rendered page as a SiteReply, so the plain-read checks can run on it."""
@@ -85,7 +86,9 @@ class Session:
                               summary=site.cart_summary(self.cart) if self.cart else None)
 
     def note(self) -> str:
-        """Short text for what_site_said."""
+        """Short text for what_site_said; starts with "Real browser" only when a browser really ran."""
+        if not self.ran:
+            return ""
         bits = ["Real browser"]
         if self.notes:
             bits.append(", ".join(self.notes[:6]))
@@ -118,6 +121,8 @@ def clean_steps(raw, start_path: str | None = None) -> list[dict] | None:
             what = what.strip()
             if not what.startswith(("text=", "css=")):
                 what = "text=" + what
+            if not what.split("=", 1)[1].strip():
+                raise ValueError("Say what to click, for example text=Add to cart.")
             if re.search(FORBIDDEN, what.split("=", 1)[1], re.I):
                 raise ValueError(f"We never click \"{what.split('=', 1)[1]}\": it could pay, order, log in or sign up.")
             item = {"click": what}
@@ -131,7 +136,13 @@ def clean_steps(raw, start_path: str | None = None) -> list[dict] | None:
                 raise ValueError("Wait must be a number of seconds.")
             out.append({"wait": max(0.0, min(secs, 5.0))})
         elif "scroll" in step:
-            out.append({"scroll": "bottom" if step["scroll"] == "bottom" else int(step["scroll"] or 0)})
+            if step["scroll"] == "bottom":
+                out.append({"scroll": "bottom"})
+            else:
+                try:
+                    out.append({"scroll": max(0, int(step["scroll"] or 0))})
+                except (TypeError, ValueError):
+                    raise ValueError("Scroll must be bottom or a number.")
         else:
             raise ValueError("Steps can open a page, click, wait or scroll.")
     return out
@@ -162,6 +173,7 @@ def run(site_url: str, start_path: str, steps: list[dict] | None, device: str, w
                                  json={"code": _JS, "context": context}, timeout=session_ms / 1000 + 8)
         except requests.Timeout:
             s.human_reason = HUMAN["slow"]
+            s.ran = True  # the browser was most likely open until the timeout
             return s
         except requests.RequestException:
             s.human_reason = HUMAN["down"]
@@ -190,6 +202,9 @@ def run(site_url: str, start_path: str, steps: list[dict] | None, device: str, w
         s.human_reason = HUMAN["down"]
         return s
     data = data.get("data", data) if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        data = {}
+    s.ran = True
     s.status_code = data.get("status")
     s.url = str(data.get("url") or "")
     s.text = str(data.get("text") or "")

@@ -637,7 +637,9 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
         # only when a check needs it or the plain read came back empty, and at most RUN_CAP per run.
         sessions: dict = {}
         has_browser_checks = any(c["rule"] in BROWSER_RULES for c in checks)
-        used = len(db.select("results", run_id=f"eq.{run_id}", via="in.(browser,human)", select="id"))
+        # Sessions this run already used: rows whose note says a real browser ran (see browser.Session.note).
+        used = sum(1 for r in db.select("results", run_id=f"eq.{run_id}", select="what_site_said")
+                   if (r.get("what_site_said") or "").startswith("Real browser"))
         for d in todo:
             if replies[d].blocked or not (has_browser_checks or _needs_render(pair, checks, replies[d])):
                 continue
@@ -651,7 +653,7 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
                 want_shot=any(c["rule"] == "ai_vision" for c in checks),
                 want_cart=any(c["rule"] == "browser_count" for c in checks),
                 want_html=_needs_render(pair, checks, replies[d]), budget_s=room)
-            used += 1
+            used += 1 if sessions[d].ran else 0
         budget = DOOR_BUDGET - (time.monotonic() - started)
         with ThreadPoolExecutor(max_workers=2) as pool:
             verdicts = dict(zip(todo, pool.map(
@@ -659,8 +661,9 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
         for d in todo:
             reply, verdict = replies[d], verdicts[d]
             said = site.excerpt(reply, _focus_words(checks))
-            if d in sessions:
-                said = f"{sessions[d].note()} | {said}"
+            note = sessions[d].note() if d in sessions else ""
+            if note:
+                said = f"{note} | {said}"
             try:
                 result = db.insert("results", {
                     "run_id": run_id, "golden_pair_id": pair_id, "device": d, "via": verdict["via"],
@@ -821,7 +824,7 @@ async def answer_check(check_id: str, request: Request, authorization: str | Non
     passed = (await body_of(request)).get("passed")
     if not isinstance(passed, bool):
         fail(400, "Answer with looks right or looks wrong.")
-    row = db.one("result_checks", id=f"eq.{check_id}", select="id,passed,why,check_id,checks(decided_by,rule,expected)")
+    row = db.one("result_checks", id=f"eq.{check_id}", select="id,passed,why,check_id,checks(decided_by,rule,expected,steps)")
     if not row:
         fail(404, "We couldn't find that check.")
     if row["passed"] is not None:
@@ -832,4 +835,5 @@ async def answer_check(check_id: str, request: Request, authorization: str | Non
         fail(409, "This check already has an answer.")
     c = row.get("checks") or {}
     return {"check": {"id": check_id, "check_id": row["check_id"], "decided_by": c.get("decided_by"),
-                      "rule": c.get("rule"), "expected": c.get("expected"), "passed": passed, "why": why}}
+                      "rule": c.get("rule"), "expected": c.get("expected"), "steps": c.get("steps"),
+                      "passed": passed, "why": why}}

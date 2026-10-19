@@ -49,6 +49,10 @@ VISION_OK = {"passed": True, "why": "I can see it on the screen.", "confident": 
 
 # ---------------------------------------------------------------- the two fakes
 
+# Hand-overs where no hosted browser was ever opened (no units used).
+NOT_RUN = {browser.HUMAN[k] for k in ("no_token", "bad_token", "busy", "units", "down", "time", "cap")}
+
+
 class FakeBrowser:
     """Stands in for browser.run. `make(call)` returns the Session for a call (override per test)."""
 
@@ -79,6 +83,8 @@ class FakeBrowser:
         call.t0 = time.monotonic()
         time.sleep(self.delay)
         session = self.make(call)
+        if not session.ran and session.human_reason not in NOT_RUN:
+            session.ran = True  # like browser.run: a hosted browser opened (it uses units)
         call.t1 = time.monotonic()
         with self.lock:
             self.active -= 1
@@ -101,6 +107,8 @@ class FakeVision:
             self.calls.append(SimpleNamespace(shot=shot_b64, pair_id=pair["id"], ids=[c["id"] for c in checks],
                                               questions=[c["expected"] for c in checks], device=device,
                                               timeout=timeout))
+        if not shot_b64:  # like the real judge: no picture, no verdict
+            return {c["id"]: {"passed": None, "why": "no picture", "confident": False} for c in checks}
         return self.answer(device, checks)
 
 
@@ -264,7 +272,7 @@ def test_browser_count_fails_with_five_items_and_the_reason_mentions_five(m7, pi
     bad = check_of(lap, "browser_count")
     assert bad["passed"] is False and "5" in bad["why"]
     assert "5" in lap["why"]
-    assert "5" in lap["what_site_said"] or "Cart has 1 item" not in lap["what_site_said"]
+    assert "Cart has 5 items" in lap["what_site_said"]
     assert [c["passed"] for c in lap["checks"] if c["rule"] != "browser_count"] == [True, True, True]
 
 
@@ -354,9 +362,9 @@ def test_payment_reason_text_is_the_one_in_the_spec(m7, pid):
 def test_only_browser_checks_at_payment_make_the_result_cant_test_with_the_reason_as_why(m7, pid):
     pair = mk(m7, pid, "Pays", "/products/solaris", [C("ai_vision", "Does it look right?", STEPS)])
     m7.fb.make = lambda call: browser.Session(device=call.device, human_reason=HUMAN["payment"])
-    row = r0 = drive(m7.api, pid).rows[pair["id"]][0]
+    row = drive(m7.api, pid).rows[pair["id"]][0]
     assert row["outcome"] == "cant_test" and row["why"] == HUMAN["payment"] and row["via"] == "human"
-    assert r0["human_reason"] == HUMAN["payment"]
+    assert row["human_reason"] == HUMAN["payment"]
 
 
 def test_one_device_at_payment_and_the_other_fine(m7, pid):
@@ -372,16 +380,16 @@ def test_one_device_at_payment_and_the_other_fine(m7, pid):
 def test_door_13_lets_a_person_answer_the_handed_over_check(m7, pid):
     pair = mk(m7, pid, "Checks out", "/products/solaris", [C("status_ok"), C("ai_vision", "Is it clear?", STEPS)])
     m7.fb.make = lambda call: browser.Session(device=call.device, human_reason=HUMAN["payment"])
-    row = dev(drive(m7.api, pid).rows[pair["id"]])["phone"]
+    r = drive(m7.api, pid)
+    row = dev(r.rows[pair["id"]])["phone"]
     target = check_of(row, "ai_vision")
     answered = ok(m7.api.patch(f"/api/result-checks/{target['id']}", {"passed": True}))["check"]
     assert answered["passed"] is True and answered["why"] == "You said it looks right."
     assert answered["rule"] == "ai_vision" and answered["decided_by"] == "ai"
     err(m7.api.patch(f"/api/result-checks/{target['id']}", {"passed": False}), 409)  # one answer only
-    # the other device's check can be answered "wrong" independently
-    other = check_of(dev(ok(m7.api.get(f"/api/runs/{row['run_id']}"))["rows"] and
-                         [x for x in ok(m7.api.get(f"/api/runs/{row['run_id']}"))["rows"]
-                          if x["pair_id"] == pair["id"]])["laptop"], "ai_vision")
+    # the other device's check is answered separately
+    laptop = dev(r.rows[pair["id"]])["laptop"]
+    other = check_of(laptop, "ai_vision")
     assert ok(m7.api.patch(f"/api/result-checks/{other['id']}", {"passed": False}))["check"]["why"] == \
         "You said it looks wrong."
 
@@ -557,17 +565,14 @@ def test_cap_hit_pair_with_a_single_device_left_to_run(m7, pid):
         ok(m7.api.post(f"/api/runs/{run_id}/pairs/{pair_id}"), 201)
     m7.store["results"].append({"id": "00000000-0000-4000-8000-0000000000aa", "run_id": run_id,
                                 "golden_pair_id": order[5], "device": "phone", "status_code": 200,
-                                "what_site_said": "x", "outcome": "pass", "via": "browser", "created_at": "z"})
+                                "what_site_said": "Real browser · opened /", "outcome": "pass", "via": "browser",
+                                "created_at": "z"})
     before = len(m7.fb.calls)
     rows = dev(ok(m7.api.post(f"/api/runs/{run_id}/pairs/{extra['id']}"), 201)["rows"])
     assert len(m7.fb.calls) - before == 1 and m7.fb.calls[-1].device == "phone"
     assert rows["phone"]["via"] == "browser" and rows["laptop"]["human_reason"] == HUMAN["cap"]
 
 
-@pytest.mark.xfail(reason="BUG: index.py:640 counts finished results with via in (browser, human) as sessions used, so "
-                          "pairs handed to a person only by a `manual` check (no browser opened) eat the 12-session "
-                          "cap; fix: count real sessions (e.g. a `browser_sessions` column, or only via='browser' plus "
-                          "human rows whose human_reason came from the browser)")
 def test_manual_check_pairs_do_not_use_up_the_browser_cap(m7, pid):
     for i in range(1, 8):  # 7 pairs x 2 devices = 14 results via 'human', zero sessions
         mk(m7, pid, f"Manual {i}", f"/pages/m{i}", [C("status_ok"), C("manual", "Does it look friendly?")])
@@ -577,11 +582,6 @@ def test_manual_check_pairs_do_not_use_up_the_browser_cap(m7, pid):
     assert all(row["via"] == "browser" for row in r.rows[r.order[-1]])
 
 
-@pytest.mark.xfail(reason="BUG: index.py:640 only counts results saved with via browser/human, but a render-fallback "
-                          "session whose page failed (session.error) or hit login/captcha leaves via='fetch', so those "
-                          "sessions are never counted and the 12-session cap can be exceeded (units burn); fix: record "
-                          "every opened session, e.g. count them in memory per call and persist, or save via='browser' "
-                          "for any pair that opened one")
 def test_render_fallback_sessions_that_fail_still_count_towards_the_cap(m7, pid):
     m7.site.overrides.update({f"/pages/t{i}": (200, THIN) for i in range(1, 9)})
     for i in range(1, 9):
@@ -591,10 +591,6 @@ def test_render_fallback_sessions_that_fail_still_count_towards_the_cap(m7, pid)
     assert len(m7.fb.calls) <= browser.RUN_CAP
 
 
-@pytest.mark.xfail(reason="BUG(low): index.py:663 prefixes what_site_said with 'Real browser' even when no browser ran "
-                          "(run cap reached, no key, Browserless down: the Session only carries a human_reason); fix: "
-                          "only add session.note() when the session has page data (status_code is not None or "
-                          "not session.human_reason)")
 def test_what_site_said_does_not_claim_a_browser_when_none_ran(m7, pid):
     pair = mk(m7, pid, "Look", "/products/solaris", [C("status_ok"), C("ai_vision", "Is it nice?", STEPS)])
     m7.fb.make = lambda call: browser.Session(device=call.device, human_reason=HUMAN["no_token"])
@@ -779,10 +775,9 @@ def test_blocked_fetch_is_cant_test_and_never_opens_the_browser(m7, pid):
 
 
 def test_blocked_thin_text_pair_is_not_rendered_either(m7, pid):
-    pair = mk(m7, pid, "Blocked", "/blocked", [C("status_ok"), C("text_has", "Sand")])
+    mk(m7, pid, "Blocked", "/blocked", [C("status_ok"), C("text_has", "Sand")])
     drive(m7.api, pid)
     assert m7.fb.calls == []
-    assert pair
 
 
 def test_one_pair_blocked_and_the_next_one_still_uses_its_sessions(m7, pid):
@@ -905,23 +900,15 @@ def test_door_6_accepts_browser_check_beside_manual_and_ai_judge(m7, pid):
     assert [c["rule"] for c in pair["checks"]] == ["status_ok", "ai_judge", "manual", "ai_vision"]
 
 
-@pytest.mark.xfail(reason="BUG: browser.clean_steps raises TypeError for {'scroll': [1]} (browser.py:129), which door 6/7 do "
-                          "not catch: they answer 500 'Something went wrong' instead of a 400 in plain words; fix: catch "
-                          "(TypeError, ValueError) around int() in clean_steps and raise ValueError")
 def test_door_6_answers_400_for_a_scroll_that_is_not_a_number(m7, pid):
     err(m7.api.post(f"/api/projects/{pid}/pairs", body([C("ai_vision", "Nice?", [{"scroll": [1, 2]}])])), 400)
 
 
-@pytest.mark.xfail(reason="BUG: a click of just 'text=' is accepted by door 6/7 and saved; at run time it presses the first "
-                          "button on the page (browser.py:113-116, browser_fn.mjs target()); fix: reject an empty target")
 def test_door_6_rejects_a_click_with_nothing_after_the_prefix(m7, pid):
     err(m7.api.post(f"/api/projects/{pid}/pairs", body([C("ai_vision", "Nice?", [{"click": "text="}])])), 400)
 
 
 # ================================================================ 10 · the AI draft never says "manual"
-
-SITE_FOR_AI = SITE_URL
-
 
 def tidy_with(m7, monkeypatch, ai_draft, kind=None, rough="Open the menu on a phone"):
     monkeypatch.setattr(groq, "tidy_pair", REAL_TIDY)
@@ -1063,6 +1050,25 @@ def test_rerun_counts_its_own_cap_from_zero(m7, pid):
 
 
 # ================================================================ 13 · reading results back
+
+def test_rows_carry_the_checks_steps(m7, pid):
+    pair = mk(m7, pid, "Look", "/products/solaris", [C("status_ok"), C("ai_vision", "Nice?", STEPS)])
+    row = drive(m7.api, pid).rows[pair["id"]][0]
+    assert check_of(row, "status_ok")["steps"] is None
+    assert check_of(row, "ai_vision")["steps"] == [{"goto": "/products/solaris"}, {"click": "text=Sand"}]
+    again = [x for x in ok(m7.api.get(f"/api/runs/{row['run_id']}"))["rows"] if x["result_id"] == row["result_id"]][0]
+    assert check_of(again, "ai_vision")["steps"] == check_of(row, "ai_vision")["steps"]
+
+
+def test_door_13_returns_the_same_check_result_shape_as_the_rows(m7, pid):
+    pair = mk(m7, pid, "Look", "/products/solaris", [C("status_ok"), C("ai_vision", "Nice?", STEPS)])
+    m7.fb.make = lambda call: browser.Session(device=call.device, human_reason=HUMAN["payment"])
+    row = drive(m7.api, pid).rows[pair["id"]][0]
+    target = check_of(row, "ai_vision")
+    answered = ok(m7.api.patch(f"/api/result-checks/{target['id']}", {"passed": True}))["check"]
+    assert set(answered) == set(target)
+    assert answered["steps"] == target["steps"]
+
 
 def test_via_and_human_reason_are_on_every_row_of_a_mixed_run(m7, pid):
     plain = mk(m7, pid, "Plain", "/products/a", [C("status_ok")])
