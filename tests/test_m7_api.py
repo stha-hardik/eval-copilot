@@ -831,13 +831,11 @@ def body(checks, **over):
 
 
 def test_door_6_saves_cleaned_steps_and_returns_them_on_the_checks(m7, pid):
-    raw = [{"goto": "/products/solaris"}, {"click": "Sand"}, {"click": "css=button[name=add]", "optional": True},
-           {"wait": 99}, {"scroll": "bottom"}]
+    raw = [{"goto": "/products/solaris"}, {"click": "Sand"}, {"wait": 99}, {"scroll": "bottom"}]
     pair = ok(m7.api.post(f"/api/projects/{pid}/pairs", body([
         C("status_ok"), C("ai_vision", "Is Sand selected?", raw), C("browser_count", "item_count=1", [{"goto": "/"}])])), 201)["pair"]
     by_rule = {c["rule"]: c for c in pair["checks"]}
     assert by_rule["ai_vision"]["steps"] == [{"goto": "/products/solaris"}, {"click": "text=Sand"},
-                                             {"click": "css=button[name=add]", "optional": True},
                                              {"wait": 5.0}, {"scroll": "bottom"}]
     assert by_rule["browser_count"]["steps"] == [{"goto": "/"}]
     assert by_rule["status_ok"]["steps"] is None
@@ -1131,3 +1129,17 @@ def test_log_line_says_before_and_after_when_both_exist(m7, pid, capsys):
     drive(m7.api, pid)
     lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("[browser]")]
     assert lines and all("screenshots before+after" in l and "BEFORE" not in l and "AFTER" not in l for l in lines)
+
+
+def test_multi_step_browser_checks_become_code_and_ai(m7, pid):
+    """The real browser only does one page + at most one click; longer flows are checked by code and AI."""
+    two_clicks = [{"goto": "/products/solaris"}, {"click": "css=button[name=add]"}, {"click": "text=Check out"}]
+    two_pages = [{"goto": "/products/solaris"}, {"click": "css=button[name=add]"}, {"goto": "/checkout"}]
+    pair = ok(m7.api.post(f"/api/projects/{pid}/pairs", body([
+        C("ai_vision", "Does the summary match the cart?", two_pages),
+        C("browser_count", "item_count=1", two_clicks),
+        C("ai_vision", "Is Sand selected?", [{"goto": "/products/solaris"}, {"click": "Sand"}])])), 201)["pair"]
+    rules = [(c["rule"], c["decided_by"], c["steps"]) for c in pair["checks"]]
+    assert rules[0] == ("ai_judge", "ai", None)
+    assert rules[1] == ("count_equals", "code", None)
+    assert rules[2][0] == "ai_vision" and rules[2][2] == [{"goto": "/products/solaris"}, {"click": "text=Sand"}]

@@ -174,3 +174,15 @@
     one of the two tries and end as "the AI wasn't sure". Waiting now doesn't use up a try (max 4 waits, inside the time
     budget), and if Groq is still busy the check says so: "The AI was busy (too many requests), a person needs to check
     this". (c) The before/after instructions tell the AI that small visible changes (a glow, a label that changed) count.
+47. **The real browser is only for simple things (owner's rule, 20 Oct 2026).** A browser check may open ONE page and do
+    at most ONE click (waits and scrolls are fine). Anything longer (add to cart, then open checkout; several clicks; a
+    second page) is checked by code and AI on the fetched page instead: the AI is told so when it writes checks, and the
+    server turns any longer browser check into the same question as an AI check (or a code count). Reason: #10 "order
+    summary before payment" needed open → add → checkout in the browser, which always stopped at the payment page and
+    added nothing, while its code and AI checks already did the real work.
+48. **Wait for the page to finish loading before clicking.** Run 10's #7 phone tap did nothing once (the lamp stayed
+    off) and then worked in 5 of 5 retries: the tap came before the page's own scripts were ready. The browser now waits
+    for the network to go quiet (up to 5 s) after opening a page.
+49. **Demo AI app for the audit only.** `POST /api/demo-ai/answer` (`api/_lib/demo_ai.py`) is a tiny Bubl shop assistant
+    on Groq `openai/gpt-oss-20b`, used to prove Eval Co-pilot can test an AI feature (AUDIT.md section 4). It is public,
+    input capped at 300 characters, short answers, nothing stored. Remove it after the hackathon if not needed.

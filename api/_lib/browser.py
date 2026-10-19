@@ -101,6 +101,19 @@ class Session:
 
 # ---------------------------------------------------------------- steps
 
+def is_simple(steps: list[dict] | None) -> bool:
+    """The real browser only does simple things: open ONE page and do at most ONE click (waits and scrolls are fine).
+    Longer flows (add to cart, then open checkout...) are checked by code and AI on the fetched page instead."""
+    steps = steps or []
+    return sum(1 for s in steps if "goto" in s) <= 1 and sum(1 for s in steps if "click" in s) <= 1
+
+
+def downgrade(check: dict) -> dict:
+    """A browser check whose steps aren't simple becomes the same question for code / AI on the fetched page."""
+    rule = {"ai_vision": "ai_judge", "browser_count": "count_equals"}[check["rule"]]
+    return {"decided_by": "ai" if rule == "ai_judge" else "code", "rule": rule, "expected": check["expected"], "steps": None}
+
+
 def clean_steps(raw, start_path: str | None = None) -> list[dict] | None:
     """Validate steps from the builder or the AI. Same-site paths only; raises ValueError in plain words."""
     if raw in (None, [], ""):

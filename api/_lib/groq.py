@@ -58,7 +58,11 @@ as a laptop, does the steps, then:
   once and exactly one is added".
 - "ai_vision": the AI looks at one screenshot taken after the steps. expected = a yes/no question about what the
   shopper sees (layout, overlap, menu, the image matching the chosen colour, a preview lit up, a pop-up).
-Browser checks need "steps": a list of at most 8 actions, for example
+Keep the real browser for SIMPLE things only: open ONE page and do at most ONE click (for example click "Sand", click
+"Turn On", open the menu, click Add to cart once). If the shopper needs two or more actions (add to cart and then open
+checkout, several clicks, a second page), do NOT use a browser check: use code checks and "ai_judge" on the page
+instead (for a cart, POST /cart/add.js as the pair's request and check the cart with "count_equals" / "ai_judge").
+Browser checks need "steps", for example
   [{"goto":"/products/solaris"},{"click":"text=Sand"}] or [{"goto":"/"},{"click":"css=summary[aria-label=Menu]","optional":true}].
 Actions: {"goto":"/path"}, {"click":"text=<visible words>"} or {"click":"css=<selector>"} (add "optional":true when the
 button may not exist on one device), {"wait":2}, {"scroll":"bottom"}. Never click pay, place order, buy it now, log in,
@@ -272,7 +276,8 @@ def _clean_checks(checks: Any, request_url: str = "/") -> list[dict]:
             except ValueError:
                 steps = None
             steps = steps or [{"goto": request_url}]
-        out.append({"decided_by": RULE_DECIDER[rule], "rule": rule, "expected": expected, "steps": steps})
+        item = {"decided_by": RULE_DECIDER[rule], "rule": rule, "expected": expected, "steps": steps}
+        out.append(item if rule not in BROWSER_RULES or browser.is_simple(steps) else browser.downgrade(item))
     if not any(c["rule"] == "status_ok" for c in out):
         out.insert(0, {"decided_by": "code", "rule": "status_ok", "expected": None, "steps": None})
     return out[:MAX_CHECKS]

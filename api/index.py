@@ -150,7 +150,9 @@ def clean_checks(raw) -> list[dict]:
                 steps = browser.clean_steps(c.get("steps"))
             except ValueError as e:
                 fail(400, str(e))
-        out.append({"decided_by": RULE_DECIDER[c["rule"]], "rule": c["rule"], "expected": expected, "steps": steps})
+        item = {"decided_by": RULE_DECIDER[c["rule"]], "rule": c["rule"], "expected": expected, "steps": steps}
+        # The real browser is only for one page + at most one click; longer flows are checked by code and AI.
+        out.append(item if c["rule"] not in BROWSER_RULES or browser.is_simple(steps) else browser.downgrade(item))
     if len(out) > 10:
         fail(400, "Please keep it to 10 checks per pair.")
     return out
@@ -218,6 +220,19 @@ def run_info(r: dict) -> dict:
 @app.get("/api/health")
 def health():
     return {"ok": True, "browser": browser.configured()}  # only whether a browser key exists, never the key
+
+
+# ---------------------------------------------------------------- DEMO (audit only, not part of the app)
+
+@app.post("/api/demo-ai/answer")
+async def demo_ai_answer(request: Request):
+    """A tiny demo "AI feature" to test Eval Co-pilot against (AUDIT.md section 4). Public, capped, no data stored."""
+    from _lib import demo_ai
+    body = await body_of(request)
+    out = demo_ai.answer(body.get("text"))
+    if "error" in out:
+        fail(400 if "Send" in out["error"] else 502, out["error"])
+    return out
 
 
 # ---------------------------------------------------------------- 1 · login

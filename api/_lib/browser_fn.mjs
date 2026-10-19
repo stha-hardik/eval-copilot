@@ -130,7 +130,9 @@ export default async function ({ page, context }) {
       if (step.goto !== undefined) {
         const resp = await page.goto(c.base + step.goto, { waitUntil: "domcontentloaded", timeout: 20000 });
         if (out.status === null) out.status = resp ? resp.status() : null;
-        await sleep(1800);
+        // Let the page's own scripts finish loading before any click (a click too early can do nothing).
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
+        await sleep(800);
         out.notes.push(`opened ${step.goto}`);
       } else if (step.click) {
         await page.keyboard.press("Escape").catch(() => {});

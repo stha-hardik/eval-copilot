@@ -336,3 +336,14 @@ def test_judge_screenshot_says_busy_when_rate_limited_to_the_end(monkeypatch):
     monkeypatch.setattr(groq, "_vision_call", fake)
     out = groq.judge_screenshot("AAAA", {}, [{"id": "c", "expected": "lit?"}], "phone", timeout=6)
     assert out["c"]["passed"] is None and out["c"]["why"] == groq.AI_BUSY
+
+
+def test_ai_proposed_multi_step_browser_check_is_downgraded():
+    out = groq._clean_checks([
+        {"rule": "ai_vision", "expected": "Order summary right?",
+         "steps": [{"goto": "/products/solaris"}, {"click": "css=button[name=add]"}, {"goto": "/checkout"}]},
+        {"rule": "ai_vision", "expected": "Lamp lit?", "steps": [{"goto": "/products/solaris"}, {"click": "Turn On"}]},
+    ], "/products/solaris")
+    by_q = {c["expected"]: c for c in out}
+    assert by_q["Order summary right?"]["rule"] == "ai_judge" and by_q["Order summary right?"]["steps"] is None
+    assert by_q["Lamp lit?"]["rule"] == "ai_vision"
