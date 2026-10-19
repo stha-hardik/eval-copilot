@@ -13,3 +13,45 @@
    file: it only goes into Vercel's environment variables.
 5. **`requests` only for Supabase too.** The server talks to Supabase's REST and Auth APIs with plain
    `requests` (no supabase SDK), passing the user's access token so RLS always applies.
+6. **Vercel project created by hand.** The Vercel connector in the build session could only read, not
+   create projects or set env vars, so the owner created the `eval-copilot` project in the dashboard.
+   Env vars, deployment protection and the production branch are set in the laptop session (see HANDOFF.md).
+7. **One Groq call per device instead of one per check.** "Judge one check" (job 3) is batched: one call
+   answers all AI checks of a pair on one device and writes the one-line why for every failed code check.
+   Phone and laptop run in parallel. This keeps each pair well under Vercel's 60-second limit.
+8. **Time budget.** Door 9 gives itself 50 s: site requests time out at 15 s, the AI gets what is left. If
+   the AI runs out of time, AI checks are saved as "AI could not judge, please look" (passed = null).
+9. **The why for every fail is stored on the check** (`result_checks.why`), because `results` has no why
+   column. The row's one-line why is the first failed check's why.
+10. **Outcome rules in detail.** Blocked (403/429/challenge page) → can't test, every check saved as
+    "The site blocked us, so we can't test this." Page didn't load (4xx/5xx/timeout) → fail: the status
+    check carries the reason, other automatic checks say "Not checked, because the page didn't load",
+    manual checks still wait for a human. Otherwise: any check false → fail; at least one true → pass;
+    nothing decided (all manual, or the AI couldn't judge) → can't test.
+11. **Bot-block detection is careful on 200 pages.** Shops often load a captcha script on normal pages, so a
+    200 reply only counts as blocked when it is a short page with a real challenge marker
+    (Cloudflare "Just a moment…"). 403 and 429 always count as blocked.
+12. **Shopify cart pairs.** A pair that POSTs to `/cart/...` runs in its own session per device (so the cart
+    starts empty), finds the variant id from `/products/<handle>.json` when the pair names a handle and
+    colour, adds it, then reads `/cart.js`; the checks run against that cart.
+13. **Checks lock after a pair has run.** Old results point at their checks, and deleting a check would
+    delete old result rows (breaking "never change old runs"). So a pair's checks can be edited until it has
+    run once; after that the screen shows "Checks are locked after a run" and the builder adds a new pair.
+14. **3 worst fails, exact order.** Priority first, then failed on both devices, then by position. Different
+    pairs come before the second device of the same pair, so the 3 points cover 3 problems when possible.
+15. **Compare.** With `?with=<run>` it compares with that run; without, each pair is compared with the most
+    recent earlier run that tested it. "Good now?" = yes only when the pair passes on both phone and laptop.
+16. **Ticked pairs are saved as changes** with the note "Ticked as changed"; the "Other changes" note is
+    saved on the new pair the AI made from it (or with no pair if the builder didn't approve one).
+17. **"Other changes" uses its own AI job** (job 5, `change_to_pair`) through door 4 with `kind: "change"`,
+    so door 4 stays the one tidy door the spec lists.
+18. **Public links only.** New sites must be http(s) links with a dot in the name, no username/password in
+    the link, and no local or private addresses.
+19. **Design.** Followed the owner's Kole UI/UX skill (`docs/UIUX_RULES.md`): Inter (2 weights), one indigo
+    accent, neutral greys, 4/8 px spacing, borders not shadows, status always a word + icon + colour,
+    Lucide icons, real loading/empty/error/success states, light and dark mode. No sidebar: the app has
+    3 screens, so a top bar is enough.
+20. **Seed and smoke scripts.** `scripts/seed_bubl.py` enters Brajesh's 10 pairs through the app's own doors
+    (Tidy with AI proposes the checks; real handles are read from bublsolar.com's public product list).
+    `scripts/smoke_live.py` repeats the two-user RLS test and the run / re-run / compare checks against the
+    live app. Passwords come from the shell, never from a file.
