@@ -200,3 +200,18 @@ new checks: **52 of 52 passed**.
 **Browser log lines:** every real-browser session writes one line to Vercel's runtime logs, searchable as `[browser]`:
 `[browser] pair #8 phone: worked · browser opened yes · 9.4s · status 200 · cart 1 item(s) · screenshot yes`, or
 `handed to a person: <reason>`. Never the token, page text or screenshots (test in `tests/test_m7_api.py`).
+
+## Real browser + Groq vision, live (20 Oct 2026)
+
+- `BROWSERLESS_TOKEN` added to Vercel Production (sensitive) and redeployed → `/api/health` =
+  `{"ok":true,"browser":true}`.
+- Run 7: every Browserless session opened, clicked and sent a screenshot (`[browser] … worked · browser opened yes ·
+  screenshot yes`), but every screenshot check said "The AI wasn't sure (asked twice)". Cause: Groq had retired
+  `meta-llama/llama-4-scout-17b-16e-instruct` (404 `model_not_found`). Switched to `qwen/qwen3.8-27b` (Groq's only
+  current image model) and vision failures are now logged as `[vision] … failed`.
+- **Run 8 (after the fix): 22 rows · 20 pass · 2 fail · 0 can't test**, as expected. 3 things to fix first: #6
+  phone + laptop. Screenshot answers: #8 "cart pop-up shows one Solaris, Color: Black, View cart (1)" (both);
+  #6 "Color: Sand selected, main image shows the sand lamp" (both); #7 phone "lamp glowing, Turn Off button";
+  #1 laptop "categories, search and cart visible". #1 phone and #7 laptop: the AI wasn't confident (asked twice)
+  → "You check" with that reason (no `[vision] failed` lines, so not an error). #10: "Payment page, a person needs
+  to check this" on both, on purpose.
