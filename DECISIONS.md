@@ -154,3 +154,8 @@
 43. **The temporary live-test tools stay for now** (`.github/workflows/live-check.yml`, `scripts/live/`): they let anyone
     re-run the live browser test from GitHub Actions once the Browserless token is in Production. They can be deleted
     after that.
+44. **Vision model switched to `qwen/qwen3.8-27b` (20 Oct 2026).** The first live run with the real browser showed every
+    screenshot check as "The AI wasn't sure (asked twice)". Browserless was fine (all sessions opened, clicked and sent
+    a screenshot); Groq had retired `meta-llama/llama-4-scout-17b-16e-instruct` and answered 404, which the code
+    swallowed. Qwen 3.8 27B is the only Groq model that currently reads images; it answered a test screenshot
+    correctly in under a second. Vision failures now write a `[vision] … failed` line to the logs.

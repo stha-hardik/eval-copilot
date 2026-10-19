@@ -212,7 +212,7 @@ def test_request_uses_the_vision_model_json_mode_and_an_image_data_url():
     assert p.call_args.args[0] == URL
     assert p.call_args.kwargs["headers"]["Authorization"] == "Bearer test-key"
     body = p.call_args.kwargs["json"]
-    assert body["model"] == "meta-llama/llama-4-scout-17b-16e-instruct" == groq.VISION_MODEL
+    assert body["model"] == "qwen/qwen3.8-27b" == groq.VISION_MODEL
     assert body["response_format"] == {"type": "json_object"}
     system, user = body["messages"]
     assert system["role"] == "system" and system["content"] == groq.VISION_SYSTEM

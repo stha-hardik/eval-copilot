@@ -26,7 +26,7 @@ BROWSER_RULES = {"browser_count", "ai_vision"}
 RULE_DECIDER = {**{r: "code" for r in CODE_RULES}, "ai_judge": "ai", "browser_count": "code", "ai_vision": "ai",
                 "manual": "human"}
 NEEDS_EXPECTED = {"text_has", "text_absent", "ai_judge", "manual", "browser_count", "ai_vision"}
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"  # Groq's vision model (console.groq.com/docs/vision)
+VISION_MODEL = "qwen/qwen3.8-27b"  # Groq's only model that reads images (Oct 2026; Llama 4 Scout was retired)
 VISION_MAX_B64 = 3_500_000  # Groq takes base64 images up to 4 MB per request
 
 
@@ -471,7 +471,8 @@ def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
             if pause > 0:
                 time.sleep(pause)
             continue
-        except Exception:
+        except Exception as err:  # e.g. a retired model answers 404: say so in the logs instead of failing silently
+            print(f"[vision] {VISION_MODEL} failed: {type(err).__name__}: {str(err)[:120]}", flush=True)
             continue
         answers = {str(r.get("id")): r for r in (data.get("results") or []) if isinstance(r, dict)}
         still = []
