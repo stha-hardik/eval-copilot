@@ -189,7 +189,7 @@ hr { border: 0; height: 2px; margin: 0; border-radius: 2px; background: var(--lo
 }
 
 /* ---------- Layout ---------- */
-/* Top bar (EC.ui.topbar): brand | tabs | health + log out + avatar. On phones: brand tile, page title, avatar. */
+/* Top bar (EC.ui.topbar): brand | tabs | log out + avatar. On phones: brand tile, page title, avatar. */
 .topbar {
   position: sticky;
   top: 0;
@@ -235,7 +235,6 @@ hr { border: 0; height: 2px; margin: 0; border-radius: 2px; background: var(--lo
 .brand-sub { font-size: 10px; line-height: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .topbar-title { display: none; }
 .topbar-end { justify-self: end; display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
-.health-pill { flex: none; }
 
 /* Avatar button (first letter of the email) */
 .avatar {
@@ -332,7 +331,7 @@ a.tab:hover { color: var(--text); text-decoration: none; }
   body.has-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .topbar { display: flex; min-height: 64px; gap: var(--space-sm); }
   .topbar .brand { flex: none; }
-  .brand-text, .topbar > .tabs, .topbar .health-pill, .topbar .logout-btn { display: none; }
+  .brand-text, .topbar > .tabs, .topbar .logout-btn { display: none; }
   .topbar-title {
     display: block;
     flex: 1;
@@ -349,7 +348,6 @@ a.tab:hover { color: var(--text); text-decoration: none; }
 @media (min-width: 641px) { .tabbar { display: none; } }
 @media (max-width: 1200px) and (min-width: 641px) {
   .topbar { gap: var(--space-sm); }
-  .topbar .health-pill { display: none; }
   .tab { padding: 0 14px; }
 }
 @media (max-width: 1000px) and (min-width: 641px) { .brand-sub { display: none; } }

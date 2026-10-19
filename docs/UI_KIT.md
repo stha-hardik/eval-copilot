@@ -95,7 +95,7 @@ All motion is `transform` / `opacity` (plus the stat ring's `stroke-dashoffset`)
 
 | Component | CSS (`app.css`) | JS (`ui.js`) | Used by |
 |---|---|---|---|
-| Top bar | `.topbar`, `.brand`, `.avatar`, `.health-pill`, `.tabbar` | `EC.ui.topbar(opts)` | home, project, run |
+| Top bar | `.topbar`, `.brand`, `.avatar`, `.tabbar` | `EC.ui.topbar(opts)` | home, project, run |
 | Segmented control | `.segmented`, `.segmented-btn`, `.seg-indicator` | `EC.ui.segmented(el)` | login Log in / Sign up, project filter All / Priority / Suggested |
 | Tabs | `.tabs`, `.tab`, `.tabbar` | `EC.ui.tabs(el)` (made by `topbar`) | top bar + phone bottom bar |
 | Switch | `.switch` | `EC.ui.switchHtml(o)` | pair "Approved" |
@@ -111,7 +111,7 @@ All motion is `transform` / `opacity` (plus the stat ring's `stroke-dashoffset`)
 ### Top bar: `EC.ui.topbar({ page, projectId, projectName, runId, runNumber })`
 Put `<header class="topbar" id="topbar"></header>` on the page and call it once, early. `page` is `"home"`, `"project"`
 or `"run"`. It renders the brand tile, the four tabs (My projects, Golden tests, Runs & results, Compare), a real
-`GET /api/health` pill, "Log out" and the avatar menu (which shows the email in `#user-email`; both log-out buttons
+"Log out" and the avatar menu (which shows the email in `#user-email`; both log-out buttons
 call `EC.logout()`). On phones (<= 640px) the bar shrinks to brand tile + page title + avatar and the tabs become a
 fixed bottom bar (the component adds `<nav class="tabbar" id="tabbar">` to `<body>` and `body.has-tabbar`).
 Returns `{ update(opts), setActive(key), el }`; call `update({ projectId, projectName, runId, runNumber })` once the page

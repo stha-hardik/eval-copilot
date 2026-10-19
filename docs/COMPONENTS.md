@@ -18,8 +18,7 @@ Matches the My projects mockup:
   muted, not focusable as a link, `title="Open a project first"`. Active tab = current page (Compare when
   `location.hash === "#compare"` on the run page; clicking Compare there scrolls smoothly to the compare
   section and moves the indicator without reloading).
-- Right: **health pill** from a real `GET /api/health` (no auth): ok → green dot "All systems working";
-  fails → amber dot "Service trouble". Hidden ≤ 900px. Then "Log out" (ghost) and an **avatar** button
+- Right: "Log out" (ghost) and an **avatar** button
   (accent circle with the user's first email letter, `aria-haspopup="menu"`) opening the **Menu** component
   (§8) with the email and "Log out".
 - Phones (≤ 640px): top bar = brand tile + page title text (short) + avatar only; the 4 tabs move to a fixed

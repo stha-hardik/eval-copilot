@@ -1,6 +1,6 @@
 // Shared UI components (exposed as EC.ui). Loaded on every page right after /js/api.js.
 // Styles and motion live in /css/app.css; this file only adds the behaviour that CSS cannot do.
-//   EC.ui.topbar(opts)        shared top bar + tabs + bottom tab bar + avatar menu + health pill
+//   EC.ui.topbar(opts)        shared top bar + tabs + bottom tab bar + avatar menu
 //   EC.ui.remember(opts)      remember the last project / run (localStorage, always in try/catch)
 //   EC.ui.segmented(el)       sliding-indicator segmented control (emits "change")
 //   EC.ui.tabs(el)            same indicator, for links
@@ -362,7 +362,6 @@
     var host = (opts && opts.el) || document.getElementById("topbar");
     if (!host) return null;
     var state = { page: "home", projectId: null, projectName: null, runId: null, runNumber: null };
-    var health = null; // null (unknown) | true | false
     var desk = null, bar = null, menu = null;
 
     function assign(o) {
@@ -417,13 +416,6 @@
       return "<a" + common + ' href="' + esc(href) + '"' + (active ? ' aria-current="page"' : "") + (withIcon ? ' aria-label="' + esc(t.label) + '"' : "") + ">" + inner + "</a>";
     }
 
-    function healthHtml() {
-      if (health === null) return '<span class="pill health-pill" id="health" hidden></span>';
-      return health
-        ? '<span class="pill pill-pass health-pill" id="health" role="status">All systems working</span>'
-        : '<span class="pill pill-cant health-pill" id="health" role="status">Service trouble</span>';
-    }
-
     function build() {
       var act = activeKey();
       var em = email();
@@ -434,7 +426,7 @@
           '<span class="brand-text"><span class="brand-name">Eval Co-pilot</span><span class="brand-sub">Website quality co-pilot</span></span></a>' +
         '<span class="topbar-title" id="topbar-title">' + esc(pageTitle()) + "</span>" +
         '<nav class="tabs" aria-label="Main">' + TABS.map(function (t) { return tabHtml(t, t.key === act, false); }).join("") + "</nav>" +
-        '<div class="topbar-end">' + healthHtml() +
+        '<div class="topbar-end">' +
           '<button class="btn btn-ghost btn-sm logout-btn" id="logout" type="button">Log out</button>' +
           '<div class="menu-wrap">' +
             '<button class="avatar" id="avatar" type="button" aria-label="Account menu" title="Account">' + esc(letter) + "</button>" +
@@ -501,23 +493,6 @@
     host.addEventListener("click", onTabClick);
     window.addEventListener("hashchange", function () { if (state.page === "run") setActive(activeKey()); });
 
-    // real health check, no login needed
-    (function checkHealth() {
-      var ctl = window.AbortController ? new AbortController() : null;
-      var t = setTimeout(function () { if (ctl) ctl.abort(); }, 8000);
-      fetch("/api/health", ctl ? { signal: ctl.signal } : undefined)
-        .then(function (r) { return r.ok ? r.json().catch(function () { return {}; }) : Promise.reject(new Error("bad")); })
-        .then(function (d) { health = !(d && d.ok === false); })
-        .catch(function () { health = false; })
-        .then(function () {
-          clearTimeout(t);
-          var old = host.querySelector("#health");
-          if (!old) return;
-          var tmp = document.createElement("div");
-          tmp.innerHTML = healthHtml();
-          old.replaceWith(tmp.firstChild);
-        });
-    })();
 
     return {
       el: host,
