@@ -38,8 +38,22 @@ everything back. Nothing was left in the database (checked afterwards: 0 users, 
 | 15 | A tries to change that answer again | still **true** (answered once) |
 | 16 | A logged-out visitor reads projects | **refused** |
 
-The same two-user test through the live app (accounts `tester.a+eval@example.com` and
-`tester.b+eval@example.com`, B gets an empty list and a 404) runs once the app is deployed. See REPORT.md.
+## M1 + M2 live (19 Oct 2026, https://eval-copilot.vercel.app)
+
+- Vercel: 3 env vars set for Production, Preview and Development; Vercel Authentication turned off so the
+  link is public; `main` deployed from GitHub.
+- `GET /api/health` → `{"ok": true}`. `/`, `/home.html`, `/project.html`, `/run.html`, `/css/app.css` → 200.
+- "Confirm email" is off: Supabase's `/auth/v1/settings` reports `mailer_autoconfirm: true`, and sign-up
+  returns a session straight away.
+- Two-user test through the live app's own doors (`python3 scripts/smoke_live.py https://eval-copilot.vercel.app`,
+  random passwords, nothing written to a file):
+
+```
+M1 health: {'ok': True}
+M2 RLS: A=tester.a+eval@example.com sees 1 project(s); B=tester.b+eval@example.com sees 0; B asking for A's project by id -> 404
+```
+
+- The owner's account was created through `/api/signup` and logs in through `/api/login` (200).
 
 ## Automated tests (no network needed)
 
