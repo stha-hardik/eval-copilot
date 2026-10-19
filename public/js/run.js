@@ -665,8 +665,9 @@
     await EC.busy(btn, async () => {
       try {
         const r = await EC.api("POST", "/api/pairs/tidy", {
-          rough_text: "The builder changed this on their site: " + note + "\nCheck that the change works.",
+          rough_text: note,
           site_url: S.project.site_url,
+          kind: "change",
         });
         S.draft = r.pair;
         $("draft-area").innerHTML = draftHtml();
