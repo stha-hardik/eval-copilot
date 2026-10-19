@@ -409,6 +409,7 @@ hr { border: 0; height: 2px; margin: 0; border-radius: 2px; background: var(--ru
   flex: none;
 }
 .brand-tile [data-lucide], .brand-tile svg.lucide { width: 20px; height: 20px; stroke-width: 2.5; }
+.brand-tile svg.logo-mark { width: 26px; height: 26px; stroke-width: 2.3; }
 .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .topbar .brand-name { font-weight: 700; font-size: var(--fs-l); letter-spacing: -0.01em; white-space: nowrap; }
 .brand-sub { font-size: 10px; line-height: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
@@ -510,7 +511,7 @@ a.tab:hover { color: var(--text); text-decoration: none; }
   body.has-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .topbar { display: flex; min-height: 64px; gap: var(--space-sm); }
   .topbar .brand { flex: none; }
-  .brand-text, .topbar > .tabs, .topbar .logout-btn { display: none; }
+  .brand-text, .topbar > .tabs { display: none; }
   .topbar-title {
     display: block;
     flex: 1;
@@ -531,7 +532,7 @@ a.tab:hover { color: var(--text); text-decoration: none; }
 }
 @media (max-width: 1000px) and (min-width: 641px) { .brand-sub { display: none; } }
 @media (max-width: 800px) and (min-width: 641px) {
-  .brand-text, .topbar .logout-btn { display: none; }
+  .brand-text { display: none; }
   .tab { padding: 0 12px; }
 }
 
@@ -1380,6 +1381,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--fs-m); co
   color: var(--accent);
 }
 .logo-tile [data-lucide], .logo-tile svg.lucide { width: 22px; height: 22px; stroke-width: 2.75; }
+.logo-tile svg.logo-mark { width: 30px; height: 30px; stroke-width: 2.3; }
 
 /* ---------- Chips: small raised capsules (site link, count); .chip-sm is the inset device tag ---------- */
 .chip {

@@ -507,18 +507,20 @@
       return "<a" + common + ' href="' + esc(href) + '"' + (active ? ' aria-current="page"' : "") + (withIcon ? ' aria-label="' + esc(t.label) + '"' : "") + ">" + inner + "</a>";
     }
 
+    // The Eval Co-pilot mark: a check inside a ring, with the co-pilot dot. Same drawing as /favicon.svg.
+    var LOGO = '<svg class="lucide logo-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.58-7.19"/><path d="m8 12.4 2.9 2.9L16.2 9.6"/><circle cx="20.05" cy="7.9" r="1.35" fill="currentColor" stroke="none"/></svg>';
+
     function build() {
       var act = activeKey();
       var em = email();
       var letter = em ? em.trim().charAt(0).toUpperCase() : "?";
       host.innerHTML =
         '<a class="brand" href="/home.html" aria-label="Eval Co-pilot, my projects">' +
-          '<span class="brand-tile"><i data-lucide="check" aria-hidden="true"></i></span>' +
+          '<span class="brand-tile">' + LOGO + "</span>" +
           '<span class="brand-text"><span class="brand-name">Eval Co-pilot</span><span class="brand-sub">Website quality co-pilot</span></span></a>' +
         '<span class="topbar-title" id="topbar-title">' + esc(pageTitle()) + "</span>" +
         '<nav class="tabs" aria-label="Main">' + TABS.map(function (t) { return tabHtml(t, t.key === act, false); }).join("") + "</nav>" +
         '<div class="topbar-end">' +
-          '<button class="btn btn-ghost btn-sm logout-btn" id="logout" type="button">Log out</button>' +
           '<div class="menu-wrap">' +
             '<button class="avatar" id="avatar" type="button" aria-label="Account menu" title="Account">' + esc(letter) + "</button>" +
             '<div class="menu" id="account-menu" role="menu" aria-label="Account">' +
@@ -545,7 +547,6 @@
 
       function out() { forget(); EC.logout(); }
       wireThemeRow(host);
-      host.querySelector("#logout").addEventListener("click", out);
       host.querySelector("#menu-logout").addEventListener("click", out);
     }
 

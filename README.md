@@ -77,6 +77,7 @@ eval-copilot/
 │       └── supa.py       talks to Supabase as the logged-in user
 ├── public/
 │   ├── index.html        public landing page
+│   ├── favicon.svg       the Eval Co-pilot mark (check in a ring + co-pilot dot), also in every logo tile
 │   ├── login.html        log in / sign up (/login, /signup)
 │   ├── home.html         my sites
 │   ├── project.html      golden pairs
