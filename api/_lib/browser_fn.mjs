@@ -94,8 +94,15 @@ export default async function ({ page, context }) {
         const name = await el.evaluate((e) => (e.innerText || e.value || e.getAttribute("aria-label") || "").trim());
         if (forbidden.test(name)) { out.human_reason = `forbidden:${name.slice(0, 40)}`; break; }
         await el.evaluate((e) => e.scrollIntoView({ block: "center" }));
+        // If the click opens a new page (e.g. "Check out"), wait for it to load before the guard looks.
+        let navigating = false;
+        const onRequest = (r) => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) navigating = true; };
+        page.on("request", onRequest);
+        const loaded = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 12000 }).catch(() => null);
         await el.click();
         await sleep(Math.min(step.wait_ms || 1800, 5000));
+        if (navigating) { await loaded; await sleep(1500); }
+        page.off("request", onRequest);
         out.notes.push(`clicked ${label}`);
       } else if (step.wait) {
         await sleep(Math.min(Number(step.wait) * 1000, 5000));

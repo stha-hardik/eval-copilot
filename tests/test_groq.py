@@ -126,7 +126,7 @@ def test_bad_rule_dropped_and_decided_by_forced():
         ("status_ok", "code", None),
         ("text_has", "code", "Solaris"),
         ("ai_judge", "ai", "Is it there?"),
-        ("manual", "human", "Look at the photo"),
+        ("ai_vision", "ai", "Look at the photo"),  # the AI never hands work to a person
         ("min_results", "code", "3"),
     ]
 
@@ -137,7 +137,7 @@ def test_empty_expected_dropped():
         {"rule": "ai_judge", "expected": ""}, {"rule": "manual"},
         {"rule": "status_ok", "expected": "junk"},
     ]}, SITE)
-    assert d["checks"] == [{"decided_by": "code", "rule": "status_ok", "expected": None}]
+    assert d["checks"] == [{"decided_by": "code", "rule": "status_ok", "expected": None, "steps": None}]
 
 
 def test_get_body_none_and_post_string_body_parsed():

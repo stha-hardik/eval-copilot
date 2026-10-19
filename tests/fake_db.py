@@ -70,12 +70,12 @@ TABLES = {
         ops=ALL_OPS,
     ),
     "checks": dict(
-        cols=["id", "golden_pair_id", "decided_by", "rule", "expected", "created_at"],
+        cols=["id", "golden_pair_id", "decided_by", "rule", "expected", "steps", "created_at"],
         required=["golden_pair_id", "decided_by", "rule"],
-        defaults={"id": _new_id, "expected": None, "created_at": _now},
+        defaults={"id": _new_id, "expected": None, "steps": None, "created_at": _now},
         enums={"decided_by": {"code", "ai", "human"},
                "rule": {"status_ok", "text_has", "text_absent", "count_equals", "min_results", "ai_judge",
-                        "manual"}},
+                        "browser_count", "ai_vision", "manual"}},
         ops=ALL_OPS,
     ),
     "runs": dict(
@@ -87,11 +87,12 @@ TABLES = {
         ops={"select", "insert", "update"},  # no delete: history is a row
     ),
     "results": dict(
-        cols=["id", "run_id", "golden_pair_id", "device", "status_code", "what_site_said", "outcome",
+        cols=["id", "run_id", "golden_pair_id", "device", "status_code", "what_site_said", "outcome", "via",
               "created_at"],
         required=["run_id", "golden_pair_id", "device", "outcome"],
-        defaults={"id": _new_id, "status_code": None, "what_site_said": None, "created_at": _now},
-        enums={"device": {"phone", "laptop"}, "outcome": {"pass", "fail", "cant_test"}},
+        defaults={"id": _new_id, "status_code": None, "what_site_said": None, "via": "fetch", "created_at": _now},
+        enums={"device": {"phone", "laptop"}, "outcome": {"pass", "fail", "cant_test"},
+               "via": {"fetch", "browser", "human"}},
         unique=[("run_id", "golden_pair_id", "device")],
         ops={"select", "insert"},  # never update or delete: Run 1 can't be overwritten
     ),

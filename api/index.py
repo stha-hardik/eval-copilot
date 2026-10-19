@@ -19,15 +19,20 @@ from fastapi.responses import JSONResponse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _lib import groq, site, supa  # noqa: E402
+from _lib import browser, groq, site, supa  # noqa: E402
 from _lib.supa import Db, SupaError, in_list  # noqa: E402
 
 app = FastAPI(title="Eval Co-pilot", docs_url=None, redoc_url=None, openapi_url=None)
 
 DEVICES = ("phone", "laptop")
-DOOR_BUDGET = 50  # seconds; Vercel stops a function at 60
+DOOR_BUDGET = 140  # seconds; vercel.json lets this function run for 150
+GROQ_RESERVE = 30  # seconds kept for the AI after the browser sessions
 CODE_RULES = {"status_ok", "text_has", "text_absent", "count_equals", "min_results"}
-RULE_DECIDER = {**{r: "code" for r in CODE_RULES}, "ai_judge": "ai", "manual": "human"}
+BROWSER_RULES = {"browser_count", "ai_vision"}
+TEXT_RULES = {"text_has", "text_absent", "ai_judge", "min_results", "count_equals"}
+RULE_DECIDER = {**{r: "code" for r in CODE_RULES}, "ai_judge": "ai", "browser_count": "code", "ai_vision": "ai",
+                "manual": "human"}
+VISION_UNSURE = "The AI wasn't sure from the screenshot (asked twice), a person needs to check this"
 BLOCKED_WHY = "The site blocked us, so we can't test this."
 LOOK_WHY = "This needs your eyes: answer the checks below."
 NOT_CHECKED = "Not checked, because the page didn't load."
@@ -137,9 +142,15 @@ def clean_checks(raw) -> list[dict]:
             fail(400, "One of the checks is not valid.")
         expected = c.get("expected")
         expected = None if expected is None else str(expected).strip()[:300] or None
-        if c["rule"] in ("text_has", "text_absent", "ai_judge", "manual", "count_equals") and not expected:
+        if c["rule"] in TEXT_RULES - {"min_results"} | BROWSER_RULES | {"manual"} and not expected:
             fail(400, "One of the checks needs something to look for.")
-        out.append({"decided_by": RULE_DECIDER[c["rule"]], "rule": c["rule"], "expected": expected})
+        steps = None
+        if c["rule"] in BROWSER_RULES:
+            try:
+                steps = browser.clean_steps(c.get("steps"))
+            except ValueError as e:
+                fail(400, str(e))
+        out.append({"decided_by": RULE_DECIDER[c["rule"]], "rule": c["rule"], "expected": expected, "steps": steps})
     if len(out) > 10:
         fail(400, "Please keep it to 10 checks per pair.")
     return out
@@ -206,7 +217,7 @@ def run_info(r: dict) -> dict:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "browser": browser.configured()}  # only whether a browser key exists, never the key
 
 
 # ---------------------------------------------------------------- 1 · login
@@ -425,20 +436,51 @@ async def create_run(project_id: str, request: Request, authorization: str | Non
 
 # ---------------------------------------------------------------- 9 · test one pair
 
-def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, budget: float) -> dict:
-    """Decide every check for one device. Returns {outcome, rows:[{check_id, passed, why}]}."""
+def _needs_render(pair: dict, checks: list[dict], reply: site.SiteReply) -> bool:
+    """Plain read came back 200 but nearly empty or a JavaScript shell: retry that page in the browser."""
+    if pair["method"] != "GET" or reply.blocked or reply.error or reply.status_code != 200:
+        return False
+    if not any(c["rule"] in TEXT_RULES for c in checks):
+        return False
+    shell = re.search(r'<div id="(root|app|__next)"[^>]*>\s*</div>', reply.html or "") or \
+        "enable javascript" in reply.text.lower()
+    return len(reply.text.strip()) < 300 or bool(shell)
+
+
+def _session_steps(pair: dict, checks: list[dict]) -> list[dict]:
+    """One session per pair + device: the first browser check's steps (or just open the pair's page)."""
+    for c in checks:
+        if c["rule"] in BROWSER_RULES and c.get("steps"):
+            return c["steps"]
+    return [{"goto": pair["request_url"] if pair["method"] == "GET" and pair["request_url"] else "/"}]
+
+
+def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, session, budget: float) -> dict:
+    """Decide every check for one device. Returns {outcome, via, rows:[{check_id, passed, why}]}.
+
+    Code decides in a fixed order: plain page read (fetch) -> real browser -> a person, only as a last resort.
+    """
     if reply.blocked:
-        return {"outcome": "cant_test", "rows": [{"check_id": c["id"], "passed": None, "why": BLOCKED_WHY}
-                                                for c in checks]}
-    page_failed = reply.error is not None or reply.status_code is None or reply.status_code >= 400
-    decided, failed_code, ai_checks = {}, [], []
+        return {"outcome": "cant_test", "via": "fetch",
+                "rows": [{"check_id": c["id"], "passed": None, "why": BLOCKED_WHY} for c in checks]}
+    started = time.monotonic()
+    page = reply
+    via = "fetch"
+    if session and not session.human_reason and not session.error and _needs_render(pair, checks, reply):
+        page = session.as_reply()  # the rendered page answers the plain-read checks
+        page.status_code = reply.status_code
+        via = "browser"
+    fetch_checks = [c for c in checks if c["rule"] not in BROWSER_RULES]
+    page_failed = page.error is not None or page.status_code is None or page.status_code >= 400
+    decided, failed_code, ai_checks, vision_checks = {}, [], [], []
+    handed_over = False
     if page_failed:
         # The page didn't load: one check carries the reason (the status check if there is one),
         # the other automatic checks are marked not checked, manual checks still wait for a human.
-        reason = reply.error or site.run_code_check("status_ok", None, reply)[1]
-        auto = [c for c in checks if c["rule"] != "manual"]
+        reason = page.error or site.run_code_check("status_ok", None, page)[1]
+        auto = [c for c in fetch_checks if c["rule"] != "manual"]
         carrier = next((c for c in auto if c["rule"] == "status_ok"), auto[0] if auto else None)
-        for c in checks:
+        for c in fetch_checks:
             if c["rule"] == "manual":
                 decided[c["id"]] = {"passed": None, "why": f"You look: {c['expected']}"}
             elif c is carrier:
@@ -447,20 +489,58 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, budget:
             else:
                 decided[c["id"]] = {"passed": False, "why": NOT_CHECKED}
     else:
-        for c in checks:
+        for c in fetch_checks:
             if c["rule"] == "manual":
                 decided[c["id"]] = {"passed": None, "why": f"You look: {c['expected']}"}
             elif c["rule"] in CODE_RULES:
-                ok, detail = site.run_code_check(c["rule"], c["expected"], reply)
+                ok, detail = site.run_code_check(c["rule"], c["expected"], page)
                 decided[c["id"]] = {"passed": ok, "why": detail}
                 if not ok:
                     failed_code.append({**c, "detail": detail})
             else:
                 ai_checks.append(c)
-    if (ai_checks or failed_code) and budget > 4:
-        decided.update(groq.judge(reply.text, pair, ai_checks, failed_code, timeout=budget))
+    if any(c["rule"] == "manual" for c in fetch_checks):
+        handed_over = True
+
+    # Browser checks: decided from the one session this pair + device had.
+    for c in (c for c in checks if c["rule"] in BROWSER_RULES):
+        if session is None or session.human_reason:
+            decided[c["id"]] = {"passed": None, "why": (session.human_reason if session else None)
+                                or browser.HUMAN["down"]}
+            handed_over = True
+        elif session.error:
+            decided[c["id"]] = {"passed": False, "why": session.error}
+            via = "browser"
+        elif c["rule"] == "browser_count":
+            via = "browser"
+            if session.cart is None:
+                decided[c["id"]] = {"passed": False, "why": "We couldn't read the cart after the clicks."}
+            else:
+                ok, detail = site.run_code_check("count_equals", c["expected"], session.as_reply())
+                decided[c["id"]] = {"passed": ok, "why": detail}
+                if not ok:
+                    failed_code.append({**c, "rule": "count_equals", "detail": detail})
+        else:
+            via = "browser"
+            vision_checks.append(c)
+
+    def left() -> float:
+        return budget - (time.monotonic() - started)
+
+    if (ai_checks or failed_code) and left() > 4:
+        decided.update(groq.judge(page.text, pair, ai_checks, failed_code, timeout=min(left(), 25)))
     for c in ai_checks:
         decided.setdefault(c["id"], {"passed": None, "why": groq.AI_UNSURE})
+    if vision_checks:
+        seen = groq.judge_screenshot(session.shot or "", pair, vision_checks, session.device,
+                                     timeout=max(0, min(left(), 40)))
+        for c in vision_checks:
+            v = seen.get(c["id"]) or {}
+            if v.get("confident") and isinstance(v.get("passed"), bool):
+                decided[c["id"]] = {"passed": v["passed"], "why": v["why"]}
+            else:
+                decided[c["id"]] = {"passed": None, "why": VISION_UNSURE}
+                handed_over = True
 
     rows = [{"check_id": c["id"], **decided[c["id"]]} for c in checks if c["id"] in decided]
     values = [r["passed"] for r in rows]
@@ -469,8 +549,8 @@ def _judge_device(pair: dict, checks: list[dict], reply: site.SiteReply, budget:
     elif any(v is True for v in values):
         outcome = "pass"
     else:
-        outcome = "cant_test"  # every check needs a human (or the AI couldn't judge any)
-    return {"outcome": outcome, "rows": rows}
+        outcome = "cant_test"  # nothing could be decided (all handed to a person, or the AI couldn't judge)
+    return {"outcome": outcome, "via": "human" if handed_over else via, "rows": rows}
 
 
 def _focus_words(checks: list[dict]) -> list[str]:
@@ -487,7 +567,16 @@ def _row_why(outcome: str, checks: list[dict]) -> str:
         return BLOCKED_WHY
     if any(c.get("why") == groq.AI_UNSURE for c in checks):
         return "The AI couldn't decide. Please answer the checks below."
-    return LOOK_WHY
+    reason = _human_reason(checks)
+    return reason or LOOK_WHY
+
+
+def _human_reason(checks: list[dict]) -> str:
+    """Why a check was handed to a person (empty when none was)."""
+    for c in checks:
+        if c["passed"] is None and c.get("rule") in BROWSER_RULES and c.get("why"):
+            return c["why"]
+    return ""
 
 
 def build_rows(db: Db, run_id: str, pair_id: str | None = None) -> list[dict]:
@@ -513,6 +602,7 @@ def build_rows(db: Db, run_id: str, pair_id: str | None = None) -> list[dict]:
             "is_priority": bool(g.get("is_priority")), "device": r["device"], "status_code": r["status_code"],
             "outcome": r["outcome"], "what_site_said": r["what_site_said"],
             "why": _row_why(r["outcome"], checks), "checks": checks,
+            "via": r.get("via") or "fetch", "human_reason": _human_reason(checks) if r.get("via") == "human" else "",
         })
     failing = {x["pair_id"] for x in rows if x["outcome"] == "fail"}
     rows.sort(key=lambda x: (not x["is_priority"], x["pair_id"] not in failing, x["position"] or 0,
@@ -543,15 +633,39 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
             replies = dict(zip(todo, pool.map(
                 lambda d: site.fetch_pair(project["site_url"], pair["request_url"] or "/", pair["method"],
                                           pair["request_body"], d), todo)))
-            budget = DOOR_BUDGET - (time.monotonic() - started)
-            verdicts = dict(zip(todo, pool.map(lambda d: _judge_device(pair, checks, replies[d], budget), todo)))
+        # The real browser: one session per pair + device, phone then laptop (never at the same time),
+        # only when a check needs it or the plain read came back empty, and at most RUN_CAP per run.
+        sessions: dict = {}
+        has_browser_checks = any(c["rule"] in BROWSER_RULES for c in checks)
+        used = len(db.select("results", run_id=f"eq.{run_id}", via="in.(browser,human)", select="id"))
+        for d in todo:
+            if replies[d].blocked or not (has_browser_checks or _needs_render(pair, checks, replies[d])):
+                continue
+            if used >= browser.RUN_CAP:
+                sessions[d] = browser.Session(device=d, human_reason=browser.HUMAN["cap"])
+                continue
+            room = DOOR_BUDGET - GROQ_RESERVE - (time.monotonic() - started)
+            sessions[d] = browser.run(
+                project["site_url"], pair["request_url"] if pair["method"] == "GET" else "/",
+                _session_steps(pair, checks), d,
+                want_shot=any(c["rule"] == "ai_vision" for c in checks),
+                want_cart=any(c["rule"] == "browser_count" for c in checks),
+                want_html=_needs_render(pair, checks, replies[d]), budget_s=room)
+            used += 1
+        budget = DOOR_BUDGET - (time.monotonic() - started)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            verdicts = dict(zip(todo, pool.map(
+                lambda d: _judge_device(pair, checks, replies[d], sessions.get(d), budget), todo)))
         for d in todo:
             reply, verdict = replies[d], verdicts[d]
+            said = site.excerpt(reply, _focus_words(checks))
+            if d in sessions:
+                said = f"{sessions[d].note()} | {said}"
             try:
                 result = db.insert("results", {
-                    "run_id": run_id, "golden_pair_id": pair_id, "device": d,
+                    "run_id": run_id, "golden_pair_id": pair_id, "device": d, "via": verdict["via"],
                     "status_code": reply.status_code, "outcome": verdict["outcome"],
-                    "what_site_said": site.excerpt(reply, _focus_words(checks))[:500],
+                    "what_site_said": said[:500],
                 })[0]
             except SupaError as e:
                 if e.code == "23505":  # saved by a parallel call already: keep that one

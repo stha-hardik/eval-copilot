@@ -47,7 +47,7 @@ PAIR = {"id", "project_id", "position", "user_does", "good_result", "request_url
         "source", "approved", "is_priority", "created_at", "checks", "has_results"}
 CHECK = {"id", "decided_by", "rule", "expected"}  # docs list these four; the API may send more
 ROW = {"result_id", "run_id", "pair_id", "position", "user_does", "good_result", "is_priority", "device",
-       "status_code", "outcome", "what_site_said", "why", "checks"}
+       "status_code", "outcome", "what_site_said", "why", "checks", "via", "human_reason"}
 CHECK_RESULT = {"id", "check_id", "decided_by", "rule", "expected", "passed", "why"}
 POINT = {"rank", "result_id", "pair_id", "position", "user_does", "device", "explanation", "what_site_said"}
 CHANGED = {"pair_id", "position", "user_does", "note", "phone", "laptop", "good_now"}
@@ -409,7 +409,7 @@ def pair_order(world, rows) -> list[str]:
 # ================================================================ health + login
 
 def test_health(api):
-    assert ok(api.get("/api/health", tok=None)) == {"ok": True}
+    assert ok(api.get("/api/health", tok=None)) == {"ok": True, "browser": False}
 
 
 def test_login_signup_refresh_pass_through(env, api):

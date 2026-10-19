@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import browser
+
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "openai/gpt-oss-120b"
 TIMEOUT_SECONDS = 25
@@ -20,8 +22,12 @@ MAX_EXPLANATION = 600
 AI_UNSURE = "AI could not judge, please look"
 
 CODE_RULES = {"status_ok", "text_has", "text_absent", "count_equals", "min_results"}
-RULE_DECIDER = {**{r: "code" for r in CODE_RULES}, "ai_judge": "ai", "manual": "human"}
-NEEDS_EXPECTED = {"text_has", "text_absent", "ai_judge", "manual"}
+BROWSER_RULES = {"browser_count", "ai_vision"}
+RULE_DECIDER = {**{r: "code" for r in CODE_RULES}, "ai_judge": "ai", "browser_count": "code", "ai_vision": "ai",
+                "manual": "human"}
+NEEDS_EXPECTED = {"text_has", "text_absent", "ai_judge", "manual", "browser_count", "ai_vision"}
+VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"  # Groq's vision model (console.groq.com/docs/vision)
+VISION_MAX_B64 = 3_500_000  # Groq takes base64 images up to 4 MB per request
 
 
 class GroqError(Exception):
@@ -39,13 +45,24 @@ About the site: it is usually a Shopify store. Request paths:
 - add to cart: POST /cart/add.js with body {"items":[{"handle":"<product-handle>","option":"<colour or variant name or null>","quantity":1}]} (the server finds the variant id).
 Handles are lowercase-hyphenated product names. They are a best guess; the builder will check them.
 
-Our tester reads pages with plain HTTP: no browser, no JavaScript, no clicks, no screenshots. So:
-- Layout, overlap, colours or images matching, pop-ups, "easy to find", checkout or payment pages -> a "manual" check (a human looks). expected = what the human should look at.
+Our tester first reads pages with plain HTTP (fast and free). Use these whenever they can answer:
 - A fact in the page text (for example "mentions battery runtime") -> an "ai_judge" check whose expected is a yes/no question, or a "text_has" check for one exact word or phrase.
 - Page should load -> "status_ok" (expected null).
 - Items in a cart -> "count_equals" with expected like "item_count=1".
 - A search that returns products -> "min_results" with expected like "1".
 - "text_absent" when a word must NOT appear.
+Only when a plain page read can't answer, use the real browser (slow, limited): it opens the page as a phone and
+as a laptop, does the steps, then:
+- "browser_count": code reads the cart after real clicks. expected like "item_count=1". Use for "click Add to cart
+  once and exactly one is added".
+- "ai_vision": the AI looks at one screenshot taken after the steps. expected = a yes/no question about what the
+  shopper sees (layout, overlap, menu, the image matching the chosen colour, a preview lit up, a pop-up).
+Browser checks need "steps": a list of at most 8 actions, for example
+  [{"goto":"/products/solaris"},{"click":"text=Sand"}] or [{"goto":"/"},{"click":"css=summary[aria-label=Menu]","optional":true}].
+Actions: {"goto":"/path"}, {"click":"text=<visible words>"} or {"click":"css=<selector>"} (add "optional":true when the
+button may not exist on one device), {"wait":2}, {"scroll":"bottom"}. Never click pay, place order, buy it now, log in,
+sign up or subscribe; never fill in forms. Checkout and payment pages are left to a person automatically.
+Never use the rule "manual".
 Give 2 to 5 checks per pair, each small and testable, in plain words. The golden pair is the standard.
 Never invent numbers, prices, status codes or counts.
 """
@@ -57,9 +74,10 @@ DRAFT_SHAPE = """\
  "method": "GET" or "POST",
  "request_body": null or an object (POST only),
  "checks": [{"decided_by": "code"|"ai"|"human",
-             "rule": "status_ok"|"text_has"|"text_absent"|"count_equals"|"min_results"|"ai_judge"|"manual",
-             "expected": string or null}]}
-decided_by is "code" for status_ok/text_has/text_absent/count_equals/min_results, "ai" for ai_judge, "human" for manual."""
+             "rule": "status_ok"|"text_has"|"text_absent"|"count_equals"|"min_results"|"ai_judge"|"browser_count"|"ai_vision",
+             "expected": string or null,
+             "steps": null, or (browser_count / ai_vision only) a list of actions}]}
+decided_by is "code" for status_ok/text_has/text_absent/count_equals/min_results/browser_count, "ai" for ai_judge/ai_vision."""
 
 JSON_ONLY = "Answer with JSON only, in exactly the given shape. No other text."
 
@@ -231,12 +249,14 @@ def _clean_body(value: Any) -> dict | None:
     return value if isinstance(value, dict) and value else None
 
 
-def _clean_checks(checks: Any) -> list[dict]:
+def _clean_checks(checks: Any, request_url: str = "/") -> list[dict]:
     out: list[dict] = []
     for c in checks if isinstance(checks, list) else []:
         if not isinstance(c, dict):
             continue
         rule = str(c.get("rule") or "").strip().lower()
+        if rule == "manual":  # the AI never hands work to a person: a screenshot question replaces it
+            rule = "ai_vision"
         if rule not in RULE_DECIDER:
             continue
         expected = _clean_str(c.get("expected"), MAX_EXPECTED) or None
@@ -244,9 +264,16 @@ def _clean_checks(checks: Any) -> list[dict]:
             expected = None
         if rule in NEEDS_EXPECTED and not expected:
             continue
-        out.append({"decided_by": RULE_DECIDER[rule], "rule": rule, "expected": expected})
+        steps = None
+        if rule in BROWSER_RULES:
+            try:
+                steps = browser.clean_steps(c.get("steps"))
+            except ValueError:
+                steps = None
+            steps = steps or [{"goto": request_url}]
+        out.append({"decided_by": RULE_DECIDER[rule], "rule": rule, "expected": expected, "steps": steps})
     if not any(c["rule"] == "status_ok" for c in out):
-        out.insert(0, {"decided_by": "code", "rule": "status_ok", "expected": None})
+        out.insert(0, {"decided_by": "code", "rule": "status_ok", "expected": None, "steps": None})
     return out[:MAX_CHECKS]
 
 
@@ -255,13 +282,14 @@ def normalize_draft(d: dict, site_url: str) -> dict:
     d = d if isinstance(d, dict) else {}
     method = str(d.get("method") or "GET").strip().upper()
     method = method if method in ("GET", "POST") else "GET"
+    request_url = _clean_path(d.get("request_url"), site_url)
     return {
         "user_does": _clean_str(d.get("user_does"), MAX_TEXT) or "A shopper uses the site",
         "good_result": _clean_str(d.get("good_result"), MAX_TEXT) or "The site works as the shopper expects",
-        "request_url": _clean_path(d.get("request_url"), site_url),
+        "request_url": request_url,
         "method": method,
         "request_body": _clean_body(d.get("request_body")) if method == "POST" else None,
-        "checks": _clean_checks(d.get("checks")),
+        "checks": _clean_checks(d.get("checks"), request_url if method == "GET" else "/"),
     }
 
 
@@ -383,3 +411,78 @@ def change_to_pair(note: str, site_url: str) -> dict:
     """Job 5: "other things I changed" becomes ONE new golden pair Draft."""
     user = _user_json(site_url=site_url, what_the_builder_changed=strip_text(note, 2000))
     return _single_draft(CHANGE_SYSTEM, user, site_url)
+
+
+# ---------------------------------------------------------------- G6: judge a screenshot
+
+VISION_SYSTEM = f"""You check a website for a builder by looking at ONE screenshot of their live page, taken by a real
+browser after a shopper's steps. You get the golden pair (what the shopper does, what a good result has), the device
+(phone or laptop) and a list of yes/no checks. For each check decide from the screenshot only:
+- passed: true or false
+- why: one short plain-words line saying what you can see (under 180 characters)
+- confident: false when the screenshot can't show it (cut off, blurry, covered, or the thing isn't visible); else true.
+Never invent prices, numbers or counts you can't read in the screenshot.
+{JSON_ONLY}
+Shape:
+{{"results": [{{"id": "<id from the input>", "passed": true or false, "why": "one line", "confident": true or false}}]}}"""
+
+
+def _vision_call(key: str, shot_b64: str, text: str, timeout: float) -> dict:
+    payload = {
+        "model": VISION_MODEL,
+        "messages": [
+            {"role": "system", "content": VISION_SYSTEM},
+            {"role": "user", "content": [
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{shot_b64}"}},
+            ]},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,
+        "max_completion_tokens": 900,
+    }
+    return _call_once({"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, payload, timeout)
+
+
+def judge_screenshot(shot_b64: str, pair: dict, checks: list[dict], device: str,
+                     timeout: float = TIMEOUT_SECONDS) -> dict:
+    """G6: `{check_id: {"passed", "why", "confident"}}` for ai_vision checks, from one screenshot.
+
+    Asks twice for checks the AI isn't confident about; still unsure (or no answer) -> passed None, confident False.
+    """
+    unsure = {"passed": None, "why": "The AI couldn't tell from the screenshot", "confident": False}
+    out = {c["id"]: dict(unsure) for c in checks}
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not checks or not shot_b64 or not key or len(shot_b64) > VISION_MAX_B64:
+        return out
+    deadline = time.monotonic() + timeout
+    todo = list(checks)
+    for _ in range(2):
+        left = deadline - time.monotonic()
+        if not todo or left < 4:
+            break
+        text = _user_json(device=device,
+                          golden_pair={"user_does": pair.get("user_does", ""), "good_result": pair.get("good_result", "")},
+                          checks=[{"id": str(c["id"]), "question": c.get("expected")} for c in todo])
+        try:
+            data = _vision_call(key, shot_b64, text, min(left, TIMEOUT_SECONDS))
+        except _RateLimited as limited:
+            pause = min(limited.wait, deadline - time.monotonic() - 4)
+            if pause > 0:
+                time.sleep(pause)
+            continue
+        except Exception:
+            continue
+        answers = {str(r.get("id")): r for r in (data.get("results") or []) if isinstance(r, dict)}
+        still = []
+        for c in todo:
+            a = answers.get(str(c["id"]), {})
+            passed = a.get("passed") if isinstance(a.get("passed"), bool) else None
+            confident = a.get("confident") is not False and passed is not None
+            if confident:
+                out[c["id"]] = {"passed": passed, "why": _one_line(a.get("why")) or "Judged from the screenshot.",
+                                "confident": True}
+            else:
+                still.append(c)
+        todo = still
+    return out
