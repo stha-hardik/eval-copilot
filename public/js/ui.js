@@ -344,10 +344,10 @@
   };
   ui.checkTag = function (kind, cls) {
     var c = cls ? " " + cls : "";
-    if (kind === "browser") return '<span class="pill pill-browser has-icon' + c + '"><i data-lucide="globe" aria-hidden="true"></i>Real browser</span>';
-    if (kind === "ai") return '<span class="pill pill-human' + c + '">AI</span>';
-    if (kind === "human") return '<span class="pill pill-human' + c + '">You check</span>';
-    return '<span class="pill pill-neutral' + c + '">Code</span>';
+    if (kind === "browser") return '<span class="pill pill-browser has-icon' + c + '" title="Real browser: used because this test needs a click or a look"><i data-lucide="globe" aria-hidden="true"></i>Real browser</span>';
+    if (kind === "ai") return '<span class="pill pill-human' + c + '" title="AI: reads the page text and answers a yes/no question">AI</span>';
+    if (kind === "human") return '<span class="pill pill-human' + c + '" title="You check: the last resort, only when we can\u2019t finish a check ourselves">You check</span>';
+    return '<span class="pill pill-neutral' + c + '" title="Code: reads the page and decides, no clicks needed">Code</span>';
   };
   // One browser action in plain words (no capital letter at the start).
   function stepWords(s) {

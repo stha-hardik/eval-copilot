@@ -29,7 +29,7 @@
     browser: { label: "Real browser", rules: ["browser_count", "ai_vision"] },
   };
   // who = the choice in "Who decides"; by = the decided_by the server stores; steps = shows the Steps box.
-  // `manual` (a person looks) still exists on old pairs but is never offered: it is turned into a screen check.
+  // `manual` (a person checks) still exists on old pairs but is never offered: it is turned into a screenshot check.
   const RULE = {
     status_ok: { who: "code", by: "code", kind: "Page opens", label: "Nothing to fill in", ph: "" },
     text_has: { who: "code", by: "code", kind: "Shows text", label: "Words it should show", ph: "Solaris" },
@@ -37,9 +37,9 @@
     count_equals: { who: "code", by: "code", kind: "Count is right", label: "What the count should be", ph: "item_count=1" },
     min_results: { who: "code", by: "code", kind: "At least N results", label: "Smallest number of results", ph: "3" },
     ai_judge: { who: "ai", by: "ai", kind: "AI question", label: "Question for the AI (about the page text)", ph: "Does the page show the battery runtime?" },
-    browser_count: { who: "browser", by: "code", kind: "Count after clicks", label: "What the cart count should be", ph: "item_count=1", steps: true },
-    ai_vision: { who: "browser", by: "ai", kind: "AI looks at the screen", label: "What should the shopper see? (a yes/no question)", ph: "Is the menu open and showing the product links?", steps: true },
-    manual: { who: "human", by: "human", kind: "You look", label: "What will you look at?", ph: "Does the photo match the product?" },
+    browser_count: { who: "browser", by: "code", kind: "Count after real clicks", label: "What the cart count should be", ph: "item_count=1", steps: true },
+    ai_vision: { who: "browser", by: "ai", kind: "AI looks at a screenshot", label: "What should the shopper see? (a yes/no question)", ph: "Is the menu open and showing the product links?", steps: true },
+    manual: { who: "human", by: "human", kind: "You check", label: "What will you check?", ph: "Does the photo match the product?" },
   };
 
   function ruleOf(c) { return RULE[c.rule] || RULE.status_ok; }
@@ -52,10 +52,10 @@
       case "text_absent": return "Doesn't show “" + e + "”";
       case "count_equals": return "Count is right: " + e;
       case "min_results": return "At least " + e + (e === "1" ? " result" : " results");
-      case "ai_judge": return e || "The AI answers a question";
+      case "ai_judge": return e || "The AI answers a question about the page";
       case "browser_count": return "Count after real clicks: " + e;
-      case "ai_vision": return "AI looks at the screen: " + e;
-      case "manual": return "You look: " + e;
+      case "ai_vision": return "AI looks at a screenshot: " + e;
+      case "manual": return "You check: " + e;
       default: return e || c.rule || "Check";
     }
   }
@@ -174,7 +174,7 @@
         '<section class="stack enter" style="--i:1" id="sec-add" aria-labelledby="add-title">' + addCardHtml() +
           '<div class="suggest-row" id="sec-suggest">' +
             '<button class="btn btn-secondary" type="button" data-act="suggest" id="suggest-btn">' + icon("sparkles") + "Suggest pairs</button>" +
-            '<p class="hint" id="suggest-help">The AI reads your home page like a sales expert and suggests pairs for you to check.</p>' +
+            '<p class="hint" id="suggest-help">The AI reads your home page like a sales expert and suggests pairs. You review them before they’re saved.</p>' +
           "</div>" +
           '<div class="stack" id="drafts"></div></section>' +
         '<section class="stack enter" style="--i:2" id="sec-list" aria-labelledby="list-title"></section>' +
@@ -425,7 +425,7 @@
         method: d.method === "POST" ? "POST" : "GET",
         bodyText: d.request_body ? JSON.stringify(d.request_body, null, 2) : "",
         checks: (d.checks || []).map((c) => {
-          // An old "you look" check becomes "AI looks at the screen" that opens the pair's page.
+          // An old "you check" check becomes "AI looks at a screenshot" that opens the pair's page.
           if (!locked && (c.rule === "manual" || c.decided_by === "human")) {
             return { decided_by: "ai", rule: "ai_vision", expected: c.expected == null ? "" : String(c.expected),
               steps: null, stepsText: reqPath ? "open " + reqPath : "" };
@@ -522,7 +522,7 @@
         ? '<div class="field check-steps" data-field="s' + i + '">' +
             '<label class="label" for="' + esc(k) + "-c" + i + '-steps">Steps</label>' +
             '<textarea class="input" id="' + esc(k) + "-c" + i + '-steps" rows="3" data-f="c.' + i + '.steps" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="open /products/solaris&#10;click Sand">' + esc(c.stepsText) + "</textarea>" +
-            '<div class="hint">One action per line: open, click, wait. We never click pay, buy or log in.</div>' +
+            '<div class="hint">One step per line (open, click, wait, scroll). The real browser follows them in order. It never pays, logs in or types into forms.</div>' +
             '<div class="error-msg steps-err" data-err="s' + i + '" hidden></div>' +
           "</div>"
         : "") +
@@ -553,10 +553,10 @@
     let head;
     if (ed.kind === "tidy") {
       head = '<span class="pill pill-human has-icon">' + icon("wand-sparkles") + "Tidied by AI</span>" +
-        '<h3 class="section-title">Tidied by AI — check it, then save</h3>';
+        '<h3 class="section-title">Tidied by AI — review it, then save</h3>';
     } else if (ed.kind === "suggested") {
       head = '<span class="pill pill-human has-icon">' + icon("sparkles") + "Suggested</span>" +
-        '<h3 class="section-title">Suggested by the AI — check it, then save</h3>';
+        '<h3 class="section-title">Suggested by the AI — review it, then save</h3>';
     } else {
       head = '<h3 class="section-title">Edit pair #' + esc(ed.position) + "</h3>";
     }
@@ -606,7 +606,7 @@
           : "") +
         '<div class="stack-sm checks-block">' +
           '<div class="stack-sm"><h4 class="section-title">Checks</h4>' +
-          '<p class="small muted">Each check says what to look for, and who decides: the code, the AI, or a real browser.</p></div>' +
+          '<p class="small muted">Each check says what to look for. We use the simplest way to check it: code reading the page, the AI on the page text, or a real browser, only when a test needs a click or a look. If we can\u2019t finish one, we ask you and say why.</p></div>' +
           checksBody +
         "</div>" +
         '<div data-ed-banner>' + edBannerHtml(ed) + "</div>" +
@@ -934,7 +934,7 @@
       '<div class="run-dock">' +
         '<div class="run-text">' +
           "<strong>" + esc(title) + "</strong>" +
-          '<p class="run-help">Tests every approved pair on a phone and a laptop. Takes about 10–30 seconds per pair.</p>' +
+          '<p class="run-help">Tests every approved pair on a phone and a laptop. About 10–30 seconds per pair, up to a minute if it needs a real browser.</p>' +
           (note ? '<p class="run-note" id="run-note">' + esc(note) + "</p>" : "") +
         "</div>" +
         '<button class="btn btn-primary" type="button" data-act="run-all" id="run-btn"' + (can ? "" : " disabled") +

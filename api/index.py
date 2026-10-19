@@ -217,9 +217,6 @@ def run_info(r: dict) -> dict:
 
 @app.get("/api/health")
 def health():
-    # TEMPORARY (M7 setup): log env var NAMES only, never values, to find the Browserless token's name.
-    print("M7 env names:", sorted(k for k in os.environ
-                                  if not k.startswith(("VERCEL", "AWS", "LAMBDA", "_", "PYTHON", "LD_", "LANG"))))
     return {"ok": True, "browser": browser.configured()}  # only whether a browser key exists, never the key
 
 

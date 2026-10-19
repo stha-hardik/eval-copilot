@@ -29,8 +29,9 @@ def call(method, path, body=None, ok=(200, 201)):
 
 health, _ = call("GET", "/api/health")
 print("health:", health)
-if not health.get("browser"):
-    sys.exit("The live app has no Browserless token (health.browser is false); stopping before any run.")
+NO_BROWSER = not health.get("browser")
+if NO_BROWSER:
+    print("No Browserless token on the live app: testing the fallback (browser checks go to a person).")
 
 email = f"tester.m7+{secrets.token_hex(4)}@example.com"
 session, _ = call("POST", "/api/signup", {"email": email, "password": secrets.token_urlsafe(18)})
@@ -85,9 +86,15 @@ problems = []
 if non_fetch != BROWSER_PAIRS:
     problems.append(f"browser/human pairs were {sorted(non_fetch)}, expected {sorted(BROWSER_PAIRS)}")
 eight = [r for r in rows if r["position"] == 8]
-if not all(r["via"] == "browser" for r in eight):
+if NO_BROWSER:
+    for r in rows:
+        if r["position"] in BROWSER_PAIRS and (r["via"] != "human" or "isn't set up" not in r["human_reason"]):
+            problems.append(f"#{r['position']} {r['device']} should be handed to a person (no browser): {r['via']} {r['human_reason']!r}")
+        if r["position"] in BROWSER_PAIRS and r["what_site_said"].startswith("Real browser"):
+            problems.append(f"#{r['position']} claims a real browser ran")
+elif not all(r["via"] == "browser" for r in eight):
     problems.append("#8 did not use the real browser on both devices")
-for r in eight:
+for r in ([] if NO_BROWSER else eight):
     for chk in r["checks"]:
         if chk["rule"] == "browser_count" and chk["passed"] is not True:
             problems.append(f"#8 {r['device']} browser_count: {chk['why']}")
@@ -108,7 +115,7 @@ for ch in run2["changed"]:
     print(f"  #{ch['position']} good now? {ch['good_now']} (phone {ch['phone']}, laptop {ch['laptop']})")
 if before != after:
     problems.append("Run 1 changed after the re-run")
-if sessions2 not in (1, 2):
+if not NO_BROWSER and sessions2 not in (1, 2):
     problems.append(f"re-run used {sessions2} browser sessions")
 
 print(f"\nBrowser sessions: Run 1 {sessions1}, Run 2 {sessions2} (each under 30 s = 1 Browserless unit)")
