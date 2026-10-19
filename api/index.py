@@ -610,6 +610,28 @@ def build_rows(db: Db, run_id: str, pair_id: str | None = None) -> list[dict]:
     return rows
 
 
+def _log_session(pair: dict, device: str, s: "browser.Session", secs: float) -> None:
+    """One plain line per real-browser session in the Vercel logs (never the token, never page text)."""
+    if s.ran and not s.human_reason:
+        what = "worked"
+    elif s.human_reason:
+        what = "handed to a person: " + s.human_reason
+    else:
+        what = "did not open"
+    extra = []
+    if s.ran:
+        extra.append(f"status {s.status_code}")
+        if s.cart is not None:
+            extra.append(f"cart {s.cart.get('item_count')} item(s)")
+        extra.append("screenshot yes" if s.shot else "screenshot no")
+        if s.notes:
+            extra.append("notes: " + ", ".join(s.notes[:4]))
+        if s.error:
+            extra.append("error: " + s.error[:120])
+    print(f"[browser] pair #{pair.get('position')} {device}: {what} · browser opened {'yes' if s.ran else 'no'}"
+          f" · {secs:.1f}s" + (" · " + " · ".join(extra) if extra else ""), flush=True)
+
+
 @app.post("/api/runs/{run_id}/pairs/{pair_id}", status_code=201)
 def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)):
     started = time.monotonic()
@@ -645,8 +667,10 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
                 continue
             if used >= browser.RUN_CAP:
                 sessions[d] = browser.Session(device=d, human_reason=browser.HUMAN["cap"])
+                _log_session(pair, d, sessions[d], 0)
                 continue
             room = DOOR_BUDGET - GROQ_RESERVE - (time.monotonic() - started)
+            t0 = time.monotonic()
             sessions[d] = browser.run(
                 project["site_url"], pair["request_url"] if pair["method"] == "GET" else "/",
                 _session_steps(pair, checks), d,
@@ -654,6 +678,7 @@ def run_pair(run_id: str, pair_id: str, authorization: str | None = Header(None)
                 want_cart=any(c["rule"] == "browser_count" for c in checks),
                 want_html=_needs_render(pair, checks, replies[d]), budget_s=room)
             used += 1 if sessions[d].ran else 0
+            _log_session(pair, d, sessions[d], time.monotonic() - t0)
         budget = DOOR_BUDGET - (time.monotonic() - started)
         with ThreadPoolExecutor(max_workers=2) as pool:
             verdicts = dict(zip(todo, pool.map(

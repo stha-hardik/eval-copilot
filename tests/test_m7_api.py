@@ -1104,3 +1104,13 @@ def test_the_run_finishes_when_the_browser_module_raises_nothing_but_returns_odd
         assert check_of(row, "browser_count")["passed"] is False
         assert check_of(row, "ai_vision")["passed"] is None  # no picture: unsure, a person looks
     assert r.done["run"]["total"] == 2
+
+
+def test_each_browser_session_writes_one_plain_log_line_without_the_token(m7, pid, lamp, capsys, monkeypatch):
+    monkeypatch.setenv("BROWSERLESS_TOKEN", "tok-secret-123")
+    drive(m7.api, pid)
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("[browser]")]
+    assert len(lines) == 2
+    assert lines[0].startswith("[browser] pair #") and " phone: worked · browser opened yes" in lines[0]
+    assert " laptop: worked" in lines[1] and "cart 1 item(s)" in lines[1] and "screenshot yes" in lines[1]
+    assert all("tok-secret" not in l and "SHOT-" not in l for l in lines)
