@@ -1,17 +1,24 @@
-# Temporary: runs scripts in scripts/live/ on a GitHub runner (open internet) during the M7 build.
+# Temporary: runs the M7 browser harness on a GitHub runner (open internet) during the build.
 name: live-check
 on:
   push:
     branches: [claude/relaxed-goldberg-svwx2h]
-    paths: ["scripts/live/**", ".github/workflows/live-check.yml"]
+    paths: ["scripts/live/**", "api/_lib/browser_fn.mjs", ".github/workflows/live-check.yml"]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install -q requests playwright && python -m playwright install --with-deps chromium > /dev/null
-      - run: python scripts/live/run.py
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm init -y > /dev/null && npm i -s puppeteer@23
+      - run: node scripts/live/fn_harness.mjs
+      - name: Share screenshots on a scratch branch
+        if: always()
+        run: |
+          git config user.name "live-check" && git config user.email "live-check@users.noreply.github.com"
+          git checkout --orphan m7-shots && git rm -rfq --cached . && git add -f shots && git commit -qm "M7 harness screenshots" && git push -fq origin m7-shots
