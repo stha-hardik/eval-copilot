@@ -1,6 +1,7 @@
-// Screen 1: log in / sign up.
+// Log in / sign up screen. One page, two routes: /login and /signup (or ?mode=signup).
 (function () {
-  if (EC.getSession()) { location.replace("/home.html"); return; }
+  // Someone who is already logged in has nothing to do here: back to the landing page.
+  if (EC.getSession()) { location.replace("/"); return; }
 
   var mode = "login";
   var form = document.getElementById("auth-form");
@@ -15,12 +16,37 @@
   var eye = document.getElementById("toggle-password");
   var segEl = document.querySelector(".segmented");
   var seg = EC.ui.segmented(segEl);
+  var switchText = document.getElementById("switch-text");
+  var switchLink = document.getElementById("switch-link");
 
   function icons() { if (window.lucide) window.lucide.createIcons(); }
 
-  function setMode(next) {
+  function wantsSignup() {
+    return /^\/signup\/?$/.test(location.pathname) || EC.param("mode") === "signup";
+  }
+
+  // Keep the address bar in step with the mode, so a refresh or a shared link opens the same form.
+  function updateUrl(next) {
+    try {
+      var url = new URL(location.href);
+      if (/^\/(login|signup)\/?$/.test(url.pathname)) {
+        url.pathname = next === "signup" ? "/signup" : "/login";
+      } else if (next === "signup") {
+        url.searchParams.set("mode", "signup");
+      } else {
+        url.searchParams.delete("mode");
+      }
+      history.replaceState(null, "", url.pathname + url.search + url.hash);
+    } catch (e) { /* the form still works without it */ }
+  }
+
+  function setMode(next, instant) {
     mode = next;
-    seg.select(next, { silent: true }); // the sliding indicator and aria-pressed live in EC.ui.segmented
+    seg.select(next, { silent: true, instant: !!instant }); // the sliding indicator and aria-pressed live in EC.ui.segmented
+    switchText.textContent = next === "signup" ? "Already have an account?" : "New here?";
+    switchLink.textContent = next === "signup" ? "Log in" : "Sign up";
+    var keep = EC.param("next");
+    switchLink.setAttribute("href", (next === "signup" ? "/login" : "/signup") + (keep ? "?next=" + encodeURIComponent(keep) : ""));
     hint.hidden = next !== "signup";
     password.setAttribute("autocomplete", next === "signup" ? "new-password" : "current-password");
     submitLabel.textContent = next === "signup" ? "Create account" : "Log in";
@@ -84,12 +110,23 @@
 
   function nextUrl() {
     var n = EC.param("next");
-    return n && n.charAt(0) === "/" && n.charAt(1) !== "/" && n.charAt(1) !== "\\" ? n : "/home.html";
+    return n && n.charAt(0) === "/" && n.charAt(1) !== "/" && n.charAt(1) !== "\\" ? n : "/";
   }
 
   window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
 
-  segEl.addEventListener("change", function (ev) { setMode(ev.detail.value); });
+  segEl.addEventListener("change", function (ev) { setMode(ev.detail.value); updateUrl(ev.detail.value); });
+
+  // "Already have an account? Log in" / "New here? Sign up": a real link that also works without scripts.
+  switchLink.addEventListener("click", function (ev) {
+    ev.preventDefault();
+    var next = mode === "signup" ? "login" : "signup";
+    setMode(next);
+    updateUrl(next);
+  });
+
+  if (wantsSignup()) setMode("signup", true);
+  else setMode("login", true);
 
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();

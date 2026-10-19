@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script src="/js/theme.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Eval Co-pilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/landing.css">
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="card auth-card stack-lg enter" aria-labelledby="app-name">
+      <a class="auth-back" href="/"><i data-lucide="arrow-left" aria-hidden="true"></i>Back to home</a>
+
+      <div class="auth-head">
+        <div class="logo-tile settle" aria-hidden="true"><span><i data-lucide="check"></i></span></div>
+        <h1 id="app-name" class="brand-name">Eval Co-pilot</h1>
+        <p class="tagline">Catch what's broken on your site before your customers do.</p>
+      </div>
+
+      <div class="segmented" role="group" aria-label="Log in or sign up">
+        <button type="button" class="segmented-btn" id="tab-login" data-value="login" aria-pressed="true">Log in</button>
+        <button type="button" class="segmented-btn" id="tab-signup" data-value="signup" aria-pressed="false">Sign up</button>
+      </div>
+
+      <form id="auth-form" class="stack" novalidate>
+        <div class="field">
+          <label class="label" for="email">Email</label>
+          <div class="input-wrap has-icon">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="at-sign"></i></span>
+            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email"
+                   autocapitalize="off" spellcheck="false" placeholder="you@yourstore.com" aria-describedby="email-error">
+          </div>
+          <div class="error-msg" id="email-error"></div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="password">Password</label>
+          <div class="input-wrap has-icon has-trail">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="lock"></i></span>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password"
+                   aria-describedby="password-hint password-error">
+            <button class="input-trail" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show password"><i data-lucide="eye" aria-hidden="true"></i></button>
+          </div>
+          <div class="hint" id="password-hint" hidden>At least 8 characters</div>
+          <div class="error-msg" id="password-error"></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="submit" type="submit"><span id="submit-label">Log in</span><i data-lucide="arrow-right" aria-hidden="true"></i></button>
+
+        <div id="form-banner" role="alert"></div>
+      </form>
+
+      <p class="auth-switch" id="auth-switch"><span id="switch-text">New here?</span> <a id="switch-link" href="/signup">Sign up</a></p>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/login.js"></script>
+</body>
+</html>
