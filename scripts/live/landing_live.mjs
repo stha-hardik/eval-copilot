@@ -88,7 +88,7 @@ for (const [device, viewport] of [["laptop", { width: 1280, height: 800 }], ["ph
     const menu = document.getElementById("account-menu");
     if (!menu) return null;
     const text = menu.innerText;
-    return [text.indexOf("Signed in as"), text.search(/dark|light|theme/i), text.indexOf("Log out")];
+    return [text.search(/signed in as/i), text.search(/dark|light|theme/i), text.search(/log out/i)];  // innerText follows CSS capitals
   });
   check(`${device}: theme switch sits between Signed in as and Log out`, order && order[0] >= 0 && order[0] < order[1] && order[1] < order[2], JSON.stringify(order));
   const before = await page.evaluate(() => document.documentElement.dataset.theme);

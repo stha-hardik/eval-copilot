@@ -21,11 +21,21 @@ A builder thinks their website works because they only tried the things they pic
 
 Live app: https://eval-copilot.vercel.app
 
+- **`/`** is the public landing page: what the app does, three example tests from a made-up shop (labelled as
+  examples), a "3 things to fix first" preview, how it works in 4 steps, and **Test yours**. Logged out, the top
+  right shows **Log in** and **Sign up** and "Test yours" opens sign up; logged in, it shows **Dashboard** and
+  "Test yours" opens your projects. The page is static: it only looks in the browser to see if you're logged in.
+- **`/login`** and **`/signup`** are the log in and sign up screen. After either you land on the landing page.
+  Opening a page that needs a login (for example your projects) while logged out sends you to `/login`, and
+  after logging in you go straight back to that page.
+- **Light and dark theme.** It follows your device at first. Switch it any time from the avatar menu at the top
+  right (**Dark theme**, between "Signed in as" and "Log out"); your choice is remembered on that browser.
+
 Repo: https://github.com/stha-hardik/eval-copilot
 
 ## 3. How to use it
 
-1. **Sign up** with your email and a password of at least 8 characters, then log in.
+1. **Sign up.** Open the live link and press **Test yours** or **Sign up**, then use your email and a password of at least 8 characters. Press **Dashboard** to reach your projects.
 2. **Add your site.** On "My sites", click **New site**, give it a name, and paste the public link of your live site. Only that link is stored.
 3. **Write pairs.** On the site page, type what a user does and what a good result looks like (or press the mic and speak). Click **Tidy with AI** to turn it into a clean pair with checks. Or click **Suggest pairs** for up to 5 ideas, marked "suggested".
 4. **Edit, approve, prioritise.** Change any pair you like, tick **Approved**, and press **Priority** on the pairs that matter most. Only approved pairs run.
@@ -66,12 +76,13 @@ eval-copilot/
 │       ├── site.py       reads the live site (phone, laptop, Shopify cart)
 │       └── supa.py       talks to Supabase as the logged-in user
 ├── public/
-│   ├── index.html        log in / sign up
+│   ├── index.html        public landing page
+│   ├── login.html        log in / sign up (/login, /signup)
 │   ├── home.html         my sites
 │   ├── project.html      golden pairs
 │   ├── run.html          results
-│   ├── css/              app.css, project.css, run.css
-│   └── js/               api.js, login.js, home.js, project.js, run.js
+│   ├── css/              app.css (light + dark tokens), landing.css, project.css, run.css
+│   └── js/               theme.js, api.js, ui.js, landing.js, login.js, home.js, project.js, run.js
 ├── db/                   supabase_setup.sql and its migrations (02–05)
 ├── docs/                 API.md, UI_KIT.md, UIUX_RULES.md
 ├── scripts/              seed_bubl.py, smoke_live.py

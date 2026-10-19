@@ -166,3 +166,29 @@ Run 1: 20 rows · pass 19 · fail 1 · can't test 0 · via {'human': 10, 'fetch'
 Run 2 (re-run changed, #8 only): 2 rows; Run 1 untouched: True; #8 good now? yes
 RESULT: PASS   (0 Browserless units used: no browser could open)
 ```
+
+## Landing page + dark theme (19 Oct 2026)
+
+**Automated:** `python3 -m pytest -q tests/` → 578 passed; `node --check` on every script.
+
+**Local Playwright (both sub-builds, 1280×800 and 390×844, light and dark):** every screen (landing, log in, sign up,
+My projects, Golden tests with the editor open, Results with the key, re-run, compare, points, toasts, modal) with
+no console errors and no sideways scroll. Light screenshots before and after the dark theme are identical except
+the avatar menu. Dark buttons use the palette's Primary #7A9CC6 with #1A202C text (5.75:1); body text on cards 10.6:1.
+
+**Live (https://eval-copilot.vercel.app, deploy of `052443e`), `scripts/live/landing_live.mjs` on a GitHub runner,
+two brand-new throwaway accounts (random passwords, never written down):**
+
+| Check (laptop and phone; light and dark where it applies) | Result |
+|---|---|
+| Logged out `/`: headline, **Log in** + **Sign up**, no Dashboard, no sideways scroll, no script errors | pass ×4 |
+| **Test yours** → `/signup`, which links to log in | pass |
+| `/home.html` logged out → `/login?next=%2Fhome.html` | pass |
+| Sign up → lands on `/` with **Dashboard** (Log in / Sign up gone) | pass |
+| Logged in **Test yours** → projects; **Dashboard** → projects | pass |
+| Avatar menu: **Dark theme** switch between "Signed in as" and "Log out"; switches light → dark; kept after reload | pass |
+| **Log out** → `/` with Log in + Sign up again | pass |
+| Log in from a protected page → straight back to it | pass |
+
+46 of 48 passed on the first run; the 2 misses were the test itself (it looked for "Signed in as", which the menu
+shows in capitals). The screenshots show the switch in the right place; the test now ignores capitals.
