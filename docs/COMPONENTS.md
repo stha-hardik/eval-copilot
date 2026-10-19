@@ -20,7 +20,7 @@ Matches the My projects mockup:
   section and moves the indicator without reloading).
 - Right: "Log out" (ghost) and an **avatar** button
   (accent circle with the user's first email letter, `aria-haspopup="menu"`) opening the **Menu** component
-  (§8) with the email and "Log out".
+  (§8) with the email, the **Dark theme** switch (§12) and "Log out".
 - Phones (≤ 640px): top bar = brand tile + page title text (short) + avatar only; the 4 tabs move to a fixed
   **bottom tab bar** (icons `layout-grid`, `list-checks`, `activity`, `git-compare` + short labels
   "Projects", "Tests", "Results", "Compare"), raised level 2, safe-area padding
@@ -82,6 +82,16 @@ Per mockup: icon tile (icon chosen deterministically from the project name among
 "Last run: Run N · X of Y passed · date" + coloured progress bar (sage all passed, terracotta with fails,
 accent when no results), bottom row: label-caps tag + raised "Open ›" button. Hover: card lifts
 (`translateY(-2px)` + shadow cross-fade).
+
+## 12. Theme toggle: "Dark theme" row in the avatar menu
+Between the "Signed in as / email" head and "Log out" (the same menu on phones, where the avatar is the only account control).
+A full-width row (`.menu-row` > `label.switch.switch-row`, built with `EC.ui.switchHtml({ cls: "switch-row", lead, attrs: "data-theme-switch" })`):
+moon icon, "Dark theme", and the switch on the right. Real `input[type=checkbox][role=switch]`, `aria-label="Dark theme"`, checked when
+`ECTheme.get() === "dark"`. The whole row is the hit area, 44px tall; Space toggles (native) and Enter toggles too; arrow keys move
+between it and "Log out" (`EC.ui.menu` treats `[role=switch]` as a focusable item). Toggling calls `ECTheme.set("dark" | "light")`
+and the menu stays open (only `role="menuitem"` closes it). The switch follows the `ec:theme` event, so it stays right if the theme
+changes elsewhere (another tab on the same page, the device setting). Colours cross-fade ~250ms; nothing moves; no animation for
+reduced motion. Needs `/js/theme.js` first in `<head>`; without `window.ECTheme` the row is not rendered.
 
 ## Home page data (all real, from `GET /api/projects`)
 - Eyebrow with a small green dot: "YOUR WEBSITES".

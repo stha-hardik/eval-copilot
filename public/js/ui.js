@@ -8,6 +8,8 @@
 //   EC.ui.disclosure(details) animated <details> (also works on every details.disclosure automatically)
 //   EC.ui.menu(button, menu)  popover menu
 //   EC.ui.switchHtml / iconToggleHtml / pill   markup helpers so pages never repeat markup
+//   Theme: the avatar menu holds a "Dark theme" switch (calls window.ECTheme from /js/theme.js, which every page
+//   loads in <head>); it follows the "ec:theme" event, and the page cross-fades its colours for ~250ms when the theme flips.
 //   EC.ui.checkKind / checkTag / stepsText     who decides a check (Code / AI / Real browser / You check) + browser steps in plain words
 // Every animation here is skipped when the reader prefers reduced motion.
 (function () {
@@ -259,7 +261,8 @@
     button.setAttribute("aria-haspopup", "menu");
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("aria-controls", id);
-    function items() { return arr(menuEl.querySelectorAll('[role="menuitem"]')).filter(function (i) { return !i.disabled; }); }
+    // Menu items, plus switches (a switch toggles in place, so the menu stays open; only role="menuitem" closes it)
+    function items() { return arr(menuEl.querySelectorAll('[role="menuitem"], [role="switch"]')).filter(function (i) { return !i.disabled; }); }
     function onDoc(ev) { if (!menuEl.contains(ev.target) && !button.contains(ev.target)) close(false); }
     function onKey(ev) {
       if (ev.key === "Escape") { ev.preventDefault(); close(true); return; }
@@ -309,10 +312,12 @@
 
   // ------------------------------------------------------------------ markup helpers
   // Switch: a real checkbox with role="switch". `attrs` is trusted markup such as 'data-act="approve"'.
+  // Optional: `cls` adds classes to the label (e.g. "switch-row" for a full-width row); `lead` is trusted markup
+  // placed before the input (an icon and a title for a row; the input is positioned absolutely and must stay right before the track).
   ui.switchHtml = function (o) {
     o = o || {};
     var on = o.onLabel || "On", off = o.offLabel || "Off";
-    return '<label class="switch"><input type="checkbox" role="switch"' + (o.checked ? " checked" : "") + (o.disabled ? " disabled" : "") +
+    return '<label class="switch' + (o.cls ? " " + esc(o.cls) : "") + '">' + (o.lead || "") + '<input type="checkbox" role="switch"' + (o.checked ? " checked" : "") + (o.disabled ? " disabled" : "") +
       (o.attrs ? " " + o.attrs : "") + ' aria-label="' + esc(o.label || on) + '">' +
       '<span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>' +
       '<span class="switch-label" aria-hidden="true"><span class="sw-off">' + esc(off) + '</span><span class="sw-on">' + esc(on) + "</span></span></label>";
@@ -372,6 +377,48 @@
     var s = steps.map(stepWords).filter(Boolean).join(" \u2192 ");
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
+
+  // ------------------------------------------------------------------ theme (light / dark)
+  // /js/theme.js (loaded in <head>) owns the choice: ECTheme.get() / .set("light"|"dark") / .toggle(), and fires "ec:theme".
+  function themeApi() { return window.ECTheme && typeof window.ECTheme.get === "function" ? window.ECTheme : null; }
+  function syncThemeSwitches() {
+    var t = themeApi();
+    if (!t) return;
+    var dark = t.get() === "dark";
+    arr(document.querySelectorAll("input[data-theme-switch]")).forEach(function (i) { i.checked = dark; });
+  }
+  // Colours cross-fade for a moment (CSS: html.theme-anim). Nothing moves; skipped for reduced motion.
+  var animT = null;
+  document.addEventListener("ec:theme", function () {
+    syncThemeSwitches();
+    if (reduced()) return;
+    var root = document.documentElement;
+    root.classList.add("theme-anim");
+    clearTimeout(animT);
+    animT = setTimeout(function () { root.classList.remove("theme-anim"); }, 260);
+  });
+  // The "Dark theme" row for the avatar menu: a real switch (Space toggles; Enter does too), the whole row is the hit area.
+  function themeRowHtml() {
+    var t = themeApi();
+    if (!t) return "";
+    return '<div class="menu-row" role="none">' + ui.switchHtml({
+      checked: t.get() === "dark", label: "Dark theme", cls: "switch-row", attrs: "data-theme-switch",
+      lead: '<i data-lucide="moon" aria-hidden="true"></i><span class="switch-title">Dark theme</span>',
+    }) + "</div>";
+  }
+  function wireThemeRow(scope) {
+    var input = scope.querySelector("input[data-theme-switch]");
+    if (!input) return;
+    input.addEventListener("change", function () {
+      var t = themeApi();
+      if (!t) return;
+      var want = input.checked ? "dark" : "light";
+      if (t.get() !== want) t.set(want);
+    });
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") { ev.preventDefault(); input.click(); }
+    });
+  }
 
   // ------------------------------------------------------------------ remembered project / run
   ui.remember = function (o) {
@@ -476,6 +523,7 @@
             '<button class="avatar" id="avatar" type="button" aria-label="Account menu" title="Account">' + esc(letter) + "</button>" +
             '<div class="menu" id="account-menu" role="menu" aria-label="Account">' +
               '<div class="menu-head" role="none"><span class="label-caps">Signed in as</span><span class="menu-email" id="user-email">' + esc(em) + "</span></div>" +
+              themeRowHtml() +
               '<button class="menu-item" id="menu-logout" type="button" role="menuitem"><i data-lucide="log-out" aria-hidden="true"></i>Log out</button>' +
             "</div></div></div>";
 
@@ -496,6 +544,7 @@
       menu = ui.menu(host.querySelector("#avatar"), host.querySelector("#account-menu"));
 
       function out() { forget(); EC.logout(); }
+      wireThemeRow(host);
       host.querySelector("#logout").addEventListener("click", out);
       host.querySelector("#menu-logout").addEventListener("click", out);
     }

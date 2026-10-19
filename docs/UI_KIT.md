@@ -1,11 +1,11 @@
 # UI kit (shared class names; `public/css/app.css` implements them)
 
 Look: "Tactile Calm" (see `docs/REDESIGN.md` and the owner's `tactile_calm/DESIGN.md`). Plain HTML + CSS + vanilla JS.
-No React, no build step, no framework CSS. Light theme only. Every page:
+No React, no build step, no framework CSS. Light and dark themes (see "Dark theme" below). Every page:
 
 ```html
 <!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><script src="/js/theme.js"></script><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>… · Eval Co-pilot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -35,8 +35,44 @@ inserting HTML. 20px in buttons, 16px inline. No emojis anywhere.
 - The old names (`--surface`, `--border`, `--s1..--s7`, `--radius`, `--text-strong`, `--accent-tint` …) still exist as
   aliases so unrestyled pages keep rendering; use the new tokens in new CSS.
 
-Depth comes only from shadows. No borders (except the 2px accent keyboard focus ring, offset 3px). Animate only
+Depth comes only from shadows in the light theme (the dark theme uses surfaces + hairlines). No borders (except the 2px accent keyboard focus ring, offset 3px). Animate only
 `transform` and `opacity`; never width/height/top/left. The `prefers-reduced-motion` block is in app.css.
+
+## Dark theme
+`:root[data-theme="dark"]` in `app.css` overrides every colour and shadow token; `/js/theme.js` (first script in `<head>`, so no
+flash) sets the attribute from `localStorage["ec.theme"]`, else the device setting, and exposes `ECTheme.get/set/toggle` plus a
+`document` event `ec:theme`. Page CSS never writes a colour: use a token, so both themes work. The light theme is unchanged
+(every new token has a light value that reproduces the old look).
+
+| Token | Light | Dark |
+|---|---|---|
+| `--page` / `--canvas` (card) | #EEF3F9 / #E6ECF4 | #12161F / #1A202C |
+| `--surface-2` (chips, tiles, segmented indicator) | = canvas | #222938 |
+| `--surface-3` (menu, modal, toast, run bar) | = canvas | #222938 + soft shadow `--raise-2` |
+| `--btn-bg` / `--btn-bg-hover` | = canvas | #262E3E / #2F384A |
+| `--trough` (inputs, trays, tracks, skeleton) | = canvas (inset shadow) | #0F1319 (darker fill + 1px ring) |
+| `--text` / `--text-strong` (headings) / `--muted` | #2E3A4F / same / #6B7A90 | #C9D1DE / #E4E9F2 / #94A0B4 |
+| `--accent` (fills) / `--accent-strong` (links) / `--on-accent` | #4E72A1 / #395E8B / #FFF | #7A9CC6 (palette Primary, 5.75:1 with #1A202C) / #9DB8DD / #1A202C |
+| `--accent-soft` / `--secondary` (switch track) | #7A9CC6 / n/a | #7A9CC6 / #5B7FAE |
+| pass (dot, text, bg) | #7FB89A, #4B7A62, 18% | #8FA792, #B9CFBB, rgba(143,167,146,.18) |
+| fail | #D98880, #8E433C, 18% | #E8A79A, #E8A79A, rgba(232,167,154,.16) |
+| cant | #E0B872, #876326, 20% | #E3C38B, #E3C38B, rgba(227,195,139,.16) |
+| human / browser | #7A9CC6, #3E6187 | #7A9CC6, #A9C3EB on blue tints |
+| card edge | none (`--raise-1` shadows) | `0 0 0 1px rgba(176,196,222,.12)` |
+| scrim | rgba(46,58,79,.38) | rgba(5,8,13,.62) |
+
+Rules:
+- Designed, not inverted. Surfaces get lighter as they rise (page, card, raised, button); depth is a lighter surface plus a
+  1px border. No stacked neumorphic shadows; the only shadow is one soft dark one under overlays (`--raise-2`).
+- Sunken things (input, tray, track, icon tile, check row) use `--trough` (a darker fill) with a 1px ring. Pressed buttons
+  darken with an inset overlay (`--btn-press-shadow`); a pressed icon toggle fills with `--pressed-bg`.
+- Primary button = `--accent` light blue fill with `--on-accent` dark text (hover `--primary-hover-bg`). Danger = coral fill
+  (`--danger-fill`) with dark text. The active top-bar tab is a light-blue pill with dark text.
+- No pure #000 or #fff anywhere. Contrast (WCAG): body text 10.6:1 on a card, muted 6.2:1, links 8:1, every pill text at least
+  4.9:1, primary button text 9.1:1; input edges 3:1 (`--inset`, `--control-edge`).
+- Anything drawn with an image (select arrow, checkbox tick) has a token holding the data URI so it can change colour.
+- Status colours are tinted backgrounds + coloured text + a dot; never colour alone.
+- The theme flips with a quick colour cross-fade (`html.theme-anim`, ~250ms, colours only, off for reduced motion).
 
 ## Classes
 Layout: `.topbar` (see below), `.container` (max 1280px, `--margin` side padding), `.page-head` (optional `.eyebrow`,
