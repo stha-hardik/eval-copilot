@@ -9,12 +9,12 @@ read-only. So **nothing has been deployed or tested live yet**. That is what's l
 
 - **Supabase** project "eval copilot", id `gryjkkvpeqzutwxfvedq`, URL `https://gryjkkvpeqzutwxfvedq.supabase.co`
   (org "adueumfkektbujyekurz"). Migrations applied: `init_eval_copilot` (= `db/supabase_setup.sql`),
-  `lock_rls_auto_enable`, `fk_indexes` (files in `db/`). 8 tables, all with RLS. Security advisor clean
+  `lock_rls_auto_enable`, `fk_indexes`, `ordered_created_at` (files in `db/`). 8 tables, all with RLS. Security advisor clean
   except the expected `owns_project` note. The owner says "Confirm email" is turned off; verify it (step 3).
 - **Two-user RLS test at the database level: passed on 16 points** (see `TESTING.md`).
 - **All code:** 14 doors in `api/index.py` (+ `api/_lib/supa.py`, `groq.py`, `site.py`), 4 screens in
   `public/`, shared contract `docs/API.md`, UI kit `docs/UI_KIT.md`, design rules `docs/UIUX_RULES.md`
-  (digest of github.com/stha-hardik/kole-uiux-skills). Unit tests: `python3 -m pytest -q tests/`.
+  (digest of github.com/stha-hardik/kole-uiux-skills). Tests: `pip install pytest` then `python3 -m pytest -q tests/` → **244 passed** (AI helper, site reader, and every door end to end against an in-memory Supabase stand-in that enforces the same rules). Run them first to confirm the checkout is healthy.
 - **Scripts:** `scripts/seed_bubl.py` (M3 data through the app's doors) and `scripts/smoke_live.py`
   (live M1/M2/M4/M5 checks). Both take passwords from the shell only.
 - **Vercel:** the owner created project `eval-copilot` (team "stha-hardik's projects",

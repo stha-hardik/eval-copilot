@@ -6,7 +6,7 @@ Nothing leaves this machine:
   * Groq      -> FakeGroq below (fixed drafts, scripted judge / diagnose)
 `site.run_code_check` and `site.excerpt` stay REAL, so code checks are really decided on the fake pages.
 
-Tests marked xfail("BUG: ...") describe real problems in api/index.py; they should start passing once fixed.
+Earlier bugs these tests found are fixed (see DECISIONS.md #21); every test must pass.
 """
 from __future__ import annotations
 
