@@ -126,3 +126,43 @@ scroll on any screen (page width 375 = viewport), every button / link ≥ 44px t
 - The API without a login answers `{"detail":"Please log in."}` and never echoes settings.
 - The Groq key and Supabase keys live only in Vercel's environment variables (encrypted). No `.env` file on
   disk; no copy of the key or password in project files, scratch files or shell history.
+
+## M7: real browser (19 Oct 2026)
+
+**Automated (no network):** `python3 -m pytest -q tests/` → **578 passed**. New files: `tests/test_browser.py`
+(Browserless calls mocked: no key, bad key, busy twice → 1 retry after 5 s, out of units, down, timeout, payment /
+login / captcha / forbidden-click hand-overs, budget too short; step validation incl. refused clicks),
+`tests/test_m7_groq.py` (vision judge: model, JPEG data URL, ask again when unsure, unsure twice → a person),
+`tests/test_m7_api.py` (routing per check, one session per pair + device, phone then laptop never at once, one
+screenshot shared, the 12-session cap, the thin-page fallback, blocked pages, re-run of one pair, Run 1 untouched).
+They found 8 bugs, all fixed (DECISIONS 41).
+
+**Real site, local Chrome (GitHub Actions runner, same code Browserless runs, 0 units):**
+`scripts/live/fn_harness.mjs` on bublsolar.com:
+
+| Case | Result |
+|---|---|
+| #1 phone: open `/`, click the menu | menu opened (categories, search, cart visible); laptop: no menu button, step skipped |
+| #6 open Solaris, click Sand | Sand selected, photo turned Sand, price ₹1,970 shown (Black is ₹1,680) |
+| #7 click Turn On | lamp lit, button now "Turn Off" |
+| #8 click Add to cart once (phone + laptop) | cart `item_count` 1: Solaris, Black, quantity 1 |
+| #10 add, then `/checkout` | reached Shopify checkout → stopped: **payment** (nothing typed) |
+| click "Buy it now" | refused: "could pay or place an order" |
+| "Spin & Win" pop-up | closed automatically before clicks |
+| Sessions | 3–14 s each (under 30 s = 1 Browserless unit each) |
+
+Clicking the cart page's "Check out" button did nothing in an automated browser (no request, no new page), so #10's
+steps open Shopify's `/checkout` directly.
+
+**Live app (https://eval-copilot.vercel.app), throwaway account, exact copy of the owner's 10 Bubl pairs**
+(`scripts/live/m7_live.py`, run from GitHub Actions):
+
+```
+health: {'ok': True, 'browser': False}   ← no Browserless token on Production (see REPORT)
+Run 1: 20 rows · pass 19 · fail 1 · can't test 0 · via {'human': 10, 'fetch': 10}
+  #2 #3 #4 #5 #9 → via fetch (plain page read)
+  #1 #6 #7 #8 #10 → via human, browser checks passed=null,
+      why "The real browser isn't set up, a person needs to check this"; no "Real browser" note claimed
+Run 2 (re-run changed, #8 only): 2 rows; Run 1 untouched: True; #8 good now? yes
+RESULT: PASS   (0 Browserless units used: no browser could open)
+```

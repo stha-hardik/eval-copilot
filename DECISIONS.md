@@ -143,3 +143,14 @@
     session can't log in as the owner (it never has the password), so a GitHub Actions runner signed up a test
     account through the app, copied the 10 pairs exactly as stored, and ran them on the live link. The owner's own
     project has the same checks and runs the same way from "Run all".
+41. **Bugs the M7 tests found, fixed:** the 12-visit cap now counts real browser visits (rows whose note starts with
+    "Real browser", which is only written when a hosted browser really opened), not hand-overs; empty clicks ("text=")
+    and non-number scrolls are refused with plain words; door 13 returns `steps` like the rows; an odd Browserless reply
+    can't crash a run; "Log-in" / "Sign-up" with a hyphen are refused too; the vision judge only trusts an explicit
+    `confident: true`.
+42. **Wording (owner's request):** one set of words on every screen: "Reading the page" (Code or AI), "Real browser",
+    "You check" (last resort, always with the reason). The server's hand-over reasons keep the owner's own examples
+    ("Payment page, a person needs to check this", "Browser limit for this run reached").
+43. **The temporary live-test tools stay for now** (`.github/workflows/live-check.yml`, `scripts/live/`): they let anyone
+    re-run the live browser test from GitHub Actions once the Browserless token is in Production. They can be deleted
+    after that.

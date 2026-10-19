@@ -19,7 +19,7 @@ picks the worst fails, and keeps every run so Run 1 sits next to Run 2.
 | **M5** Re-run changed + compare | Tick boxes, "Other changes" box → AI turns it into a check to approve, "Good now? yes / no" per pair, compare with any earlier run (FIXED / BROKE / same), old runs never change | Run 2 by script; Run 4 through the real screens; Run 1's rows checked unchanged after every re-run |
 | **M6** Polish + docs | Your "Tactile Calm" design on every screen (soft raised / pressed surfaces, Plus Jakarta Sans, calm status colours) with purposeful motion from your animation-timing skill; friendly errors and loading / empty states; works on phones; README | Every screen checked live at laptop width and at 390px phone width; phone problems found and fixed (see `TESTING.md`) |
 
-Automated tests: `python3 -m pytest -q tests/` → **249 passed** (needs Python 3.10+, see README).
+Automated tests: `python3 -m pytest -q tests/` → **578 passed** (249 before M7) (needs Python 3.10+, see README).
 
 ## Privacy test (two users)
 
@@ -85,6 +85,73 @@ No key or password in the repo, its whole history, or any file the live site ser
 code aren't reachable from the web. The Groq and Supabase keys exist only in Vercel's encrypted settings.
 The browser never sees them, because it only talks to our own `/api` doors. No Supabase service-role key is
 used anywhere. Details in `TESTING.md`.
+
+## M7: the real browser replaces the human checks (19 Oct 2026)
+
+**What changed.** For every check, on every device, code now picks the simplest way, in this order:
+1. **Reading the page** (fast, free): page opens, words, counts, results, and AI questions on the page text.
+2. **Real browser** (Browserless), only when a test needs a click or a look: "count after real clicks" and "AI looks at a
+   screenshot". One visit per pair and device, phone then laptop, one screenshot shared, at most 12 visits per run.
+3. **You, only as a last resort, always with the reason**: payment, login or "are you a robot?" page; the AI unsure twice;
+   the browser unavailable, busy, out of units or too slow; or the 12-visit limit. Then "Looks right / Looks wrong".
+
+The browser never types, pays, places orders, logs in or creates accounts; it refuses "Buy it now", "Pay", "Log in", "Sign
+up" and similar, and closes marketing pop-ups like a shopper would. Screenshots are never stored.
+
+**New needs (README):** 6 check clicks and looks without a person · 7 browser only when a plain read can't answer · 8 a
+person only when the browser can't or mustn't go further, with the reason · 9 never pay, log in, create accounts or
+order · 10 show which tests used the real browser.
+
+**API changes (no new doors):** check rules `browser_count` and `ai_vision` with `steps` (doors 4, 5, 6, 7); door 9 routes
+fetch → browser → person and returns `via` and `human_reason` per row; result checks carry `steps`; `/api/health` says
+whether a browser key exists (`browser: true/false`, never the key). Database: migration `m7_real_browser`
+(`checks.steps`, `results.via`, new rules). New AI job: Groq vision (`meta-llama/llama-4-scout-17b-16e-instruct`)
+returns `{passed, why, confident}`.
+
+**Bubl Solar now:** no `manual` checks left. #1 menu, #6 colour, #7 Turn On, #10 order summary → AI looks at a
+screenshot; #8 add to cart once (priority) → count after real clicks = 1 (+ a screenshot check of the colour); #2–#5
+and #9 stay plain page reads (their old manual checks became AI questions on the page text).
+
+**How it was tested** (details in `TESTING.md`): 578 automated tests; the browser code run against bublsolar.com with
+a local Chrome (every Bubl flow worked: menu, Sand, Turn On, exactly 1 in the cart, checkout stopped as a payment page,
+"Buy it now" refused); and the live app with a copy of the 10 Bubl pairs (routing right, Run 1 untouched, the run
+always finishes).
+
+**Units used:** 0 Browserless units so far, because the live app has no Browserless token (below). Expected per full
+Bubl run: 10 browser visits of 3–14 s each, so about **10 units** (1 unit = 30 s); a re-run of #8 alone: **2 units**.
+The free plan's 1,000 units a month is enough for about 100 full runs.
+
+**Didn't work / needs you:**
+1. **The Browserless token is not in the project's Production settings.** I read the live server's settings by name
+   only: it has `GROQ_API_KEY`, `SUPABASE_URL` and `SUPABASE_ANON_KEY`, and no Browserless token under any name. So
+   on the live site every real-browser check is handed to you today with "The real browser isn't set up". Fix: Vercel →
+   eval-copilot → Settings → Environment Variables → add `BROWSERLESS_TOKEN` (your token) for **Production** → Save →
+   Deployments → ⋯ on the latest → Redeploy. Then `https://eval-copilot.vercel.app/api/health` shows `"browser": true`.
+   To re-run my live test after that: GitHub → Actions → live-check → Run workflow (branch main, task `live`).
+2. **The Bubl test ran on a copy, not your own account.** I never have your password, so the live tests used a throwaway
+   account with an exact copy of your 10 pairs. Your own "Bubl Solar" has the same checks: press Run all.
+3. **"Check out" on bublsolar.com does nothing in an automated browser**, so #10 opens `/checkout` directly; it then stops at
+   the payment page and asks you, as designed.
+4. **#6 phone failed in the live test on the old text question** ("only the Black price is shown"). With the browser on,
+   the screenshot check sees the price change for Sand (₹1,970 vs ₹1,680), so treat that text question with care.
+
+## Wording: real browser flow (19 Oct 2026)
+
+Every screen now says how each check was done and why, in the same words everywhere: **Reading the page** (Code or
+AI), **Real browser**, **You check**. Changes:
+- **Results:** "How to read this" now explains how we check (simplest way first, real browser only for a click or a
+  look) and each tag: Code, AI, Real browser, You check (last resort, always with a reason). "Result" and "Why" lines
+  updated. Banner: "N checks need your eyes. We couldn't finish them ourselves, and the reason is on the card…".
+  Handed-over cards show "Why we asked you: …" and "Your check"; pills read "Waiting for you" / "N waiting for you"
+  (were "Needs a look" / "N to look at"); "Waiting for your answer." (was "Waiting for you to look at the site.").
+- **Golden tests:** checks intro now says we use the simplest way and only a real browser for a click or a look, and ask
+  you with a reason if we can't finish; kinds "Count after real clicks", "AI looks at a screenshot", "You check" (was
+  "You look"); Steps hint "One step per line… It never pays, logs in or types into forms."; run time "about 10–30
+  seconds per pair, up to a minute if it needs a real browser"; "review it, then save" (was "check it, then save").
+- **Tags everywhere:** hover text explains each one (e.g. "Real browser: used because this test needs a click or a look").
+- **My projects:** "Public link only. We never log in, pay or fill in forms on your site."
+- **Server text:** an old manual check's note reads "You check: …" (was "You look: …").
+- **README:** needs 6–10, the decision order, and the real browser in "How to use it", "How it's built" and "Safety".
 
 ## Decisions I made on my own (full list in `DECISIONS.md`)
 
