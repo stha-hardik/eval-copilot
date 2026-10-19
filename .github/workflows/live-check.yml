@@ -1,14 +1,17 @@
-# Temporary: runs the M7 browser harness on a GitHub runner (open internet) during the build.
+# Temporary: runs the M7 checks on a GitHub runner (open internet) during the build.
 name: live-check
 on:
   push:
     branches: [claude/relaxed-goldberg-svwx2h]
-    paths: ["scripts/live/**", "api/_lib/browser_fn.mjs", ".github/workflows/live-check.yml"]
+    paths: ["api/_lib/browser_fn.mjs", "scripts/live/fn_harness.mjs"]
   workflow_dispatch:
+    inputs:
+      task: { description: "harness or live", default: "harness" }
 permissions:
   contents: write
 jobs:
-  run:
+  harness:
+    if: github.event_name == 'push' || inputs.task == 'harness'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -22,3 +25,13 @@ jobs:
         run: |
           git config user.name "live-check" && git config user.email "live-check@users.noreply.github.com"
           git checkout --orphan m7-shots && git rm -rfq --cached . && git add -f shots && git commit -qm "M7 harness screenshots" && git push -fq origin m7-shots
+  live:
+    if: inputs.task == 'live'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q requests
+      - run: python scripts/live/m7_live.py

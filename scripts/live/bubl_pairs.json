@@ -1,0 +1,419 @@
+[
+ {
+  "position": 1,
+  "user_does": "Opens bublsolar.com and browses the menu.",
+  "good_result": "Can easily find the product categories, search and cart. Nothing overlaps or blocks the buttons on mobile.",
+  "request_url": "/",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Search",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Cart",
+    "steps": null
+   },
+   {
+    "rule": "ai_vision",
+    "expected": "Can the shopper see the product categories (or the open menu), search and the cart, with nothing overlapping or blocking them?",
+    "steps": [
+     {
+      "goto": "/"
+     },
+     {
+      "click": "css=summary[aria-label=Menu]",
+      "optional": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "position": 2,
+  "user_does": "Searches \"Solaris\".",
+  "good_result": "Solaris appears in the results, and clicking it opens the correct product page.",
+  "request_url": "/search?q=Solaris",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "min_results",
+    "expected": "1",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Solaris",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Is Solaris listed as a product in the search results (with its name and price), not only mentioned in passing?",
+    "steps": null
+   }
+  ]
+ },
+ {
+  "position": 3,
+  "user_does": "Searches \"lamp for balcony\".",
+  "good_result": "Shows at least one suitable lamp, such as Solaris, rather than no results or unrelated products.",
+  "request_url": "/search?q=lamp+for+balcony",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "min_results",
+    "expected": "1",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Solaris",
+    "steps": null
+   }
+  ]
+ },
+ {
+  "position": 4,
+  "user_does": "Opens \"Cabinet Lights\" from the menu.",
+  "good_result": "Sees relevant products such as Walkie, Walkie X and Comfort, with working images, prices and product links.",
+  "request_url": "/collections/cabinet-lights",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Walkie",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Walkie X",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Comfort",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Does each listed product (such as Walkie, Walkie X and Comfort) show its own price on the page?",
+    "steps": null
+   }
+  ]
+ },
+ {
+  "position": 5,
+  "user_does": "Opens Solaris to understand whether it suits their needs.",
+  "good_result": "Can easily find its dimensions, brightness, charging options, charging time, battery runtime and warranty. Information is consistent across the page.",
+  "request_url": "/products/solaris",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Dimensions",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Lumen",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Charging time",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Runtime",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Warranty",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Does the page say how Solaris can be charged (for example USB-C and solar)?",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Are the numbers consistent across the page (no conflicting runtime, charging time or brightness figures)?",
+    "steps": null
+   }
+  ]
+ },
+ {
+  "position": 6,
+  "user_does": "Changes the Solaris colour from Black to Sand or Rust Red.",
+  "good_result": "The selected colour is clear, the main image matches it, and any price or availability change is shown before adding it.",
+  "request_url": "/products/solaris",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Sand",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Rust Red",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Does the page show the price and whether each colour (Black, Sand, Rust Red) can be bought, before adding to cart?",
+    "steps": null
+   },
+   {
+    "rule": "ai_vision",
+    "expected": "After choosing Sand, is Sand clearly marked as the selected colour, does the main photo show a Sand-coloured lamp, and is the price shown?",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "text=Sand"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "position": 7,
+  "user_does": "Uses the \"Turn On\" preview and browses product photos.",
+  "good_result": "The preview shows the lamp illuminated, photos load correctly, and the customer can close the enlarged view easily.",
+  "request_url": "/products/solaris",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Turn On",
+    "steps": null
+   },
+   {
+    "rule": "ai_vision",
+    "expected": "After pressing Turn On, does the photo show the lamp lit up (glowing), with a way to turn it off again?",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "text=Turn On"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "position": 8,
+  "user_does": "Starts with an empty cart, selects one Solaris and clicks \"Add to cart\" once.",
+  "good_result": "Exactly one lamp in the selected colour is added. The cart does not unexpectedly contain five lamps or extra products.",
+  "request_url": "/products/solaris",
+  "method": "GET",
+  "request_body": null,
+  "is_priority": true,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "browser_count",
+    "expected": "item_count=1",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "css=button[name=add]"
+     }
+    ]
+   },
+   {
+    "rule": "browser_count",
+    "expected": "items.length=1",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "css=button[name=add]"
+     }
+    ]
+   },
+   {
+    "rule": "ai_vision",
+    "expected": "After one click on Add to cart, does the cart show exactly one Solaris lamp, in Black, and nothing else?",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "css=button[name=add]"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "position": 9,
+  "user_does": "Adds one Solaris and one Walkie, then refreshes the page.",
+  "good_result": "Both products remain in the cart with the correct options and quantities, without duplicates or missing items.",
+  "request_url": "/cart/add.js",
+  "method": "POST",
+  "request_body": {
+   "items": [
+    {
+     "handle": "solaris",
+     "option": "Black",
+     "quantity": 1
+    },
+    {
+     "handle": "walkie",
+     "option": null,
+     "quantity": 1
+    }
+   ]
+  },
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "count_equals",
+    "expected": "item_count=2",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Solaris",
+    "steps": null
+   },
+   {
+    "rule": "text_has",
+    "expected": "Walkie",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Does the cart list one Solaris and one Walkie, each with quantity 1 and its colour or option, and no duplicates?",
+    "steps": null
+   },
+   {
+    "rule": "count_equals",
+    "expected": "items.length=2",
+    "steps": null
+   }
+  ]
+ },
+ {
+  "position": 10,
+  "user_does": "Checks the final order summary before payment.",
+  "good_result": "Products, colours, quantities and discounts match the cart. Shipping charges and the final payable amount are clearly shown, with no unexplained extras. Any free-shipping promise is honoured.",
+  "request_url": "/cart/add.js",
+  "method": "POST",
+  "request_body": {
+   "items": [
+    {
+     "handle": "solaris",
+     "option": "Black",
+     "quantity": 1
+    }
+   ]
+  },
+  "is_priority": false,
+  "checks": [
+   {
+    "rule": "status_ok",
+    "expected": null,
+    "steps": null
+   },
+   {
+    "rule": "count_equals",
+    "expected": "item_count=1",
+    "steps": null
+   },
+   {
+    "rule": "ai_judge",
+    "expected": "Does the cart show the product, its colour, the quantity and a total price, with no unexplained extra items or charges?",
+    "steps": null
+   },
+   {
+    "rule": "ai_vision",
+    "expected": "On the checkout page, do the products, colours, quantities, discounts, shipping and final amount match the cart, with any free-shipping promise honoured?",
+    "steps": [
+     {
+      "goto": "/products/solaris"
+     },
+     {
+      "click": "css=button[name=add]"
+     },
+     {
+      "goto": "/cart"
+     },
+     {
+      "click": "css=button[name=checkout]"
+     }
+    ]
+   }
+  ]
+ }
+]

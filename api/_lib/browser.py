@@ -45,13 +45,18 @@ HUMAN = {
 
 
 def token() -> str:
-    """The Browserless token from the environment: BROWSERLESS_TOKEN, or any variable named *BROWSERLESS*."""
+    """The Browserless token: BROWSERLESS_TOKEN, else any variable named *BROWSERLESS*, else *BROWSER*TOKEN/KEY*."""
     value = os.environ.get("BROWSERLESS_TOKEN", "").strip()
     if value:
         return value
-    for name, val in os.environ.items():
-        if "BROWSERLESS" in name.upper() and val.strip():
-            return val.strip()
+    names = sorted(os.environ)
+    for name in names:
+        if "BROWSERLESS" in name.upper() and os.environ[name].strip():
+            return os.environ[name].strip()
+    for name in names:
+        up = name.upper()
+        if "BROWSER" in up and ("TOKEN" in up or "KEY" in up) and os.environ[name].strip():
+            return os.environ[name].strip()
     return ""
 
 
