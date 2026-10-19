@@ -160,6 +160,7 @@ textarea.input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas
 .pair.is-new { animation: ec-pop var(--t-layout) var(--ease-out-quint) both; }
 
 /* ---------- Run bar (sticky, raised level 2) ---------- */
+.lbl-short { display: none; }
 #sec-run { position: sticky; bottom: var(--space-md); z-index: 5; }
 .run-dock { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--r-lg); background: var(--canvas); box-shadow: var(--raise-2); }
 .run-dock .btn { width: 100%; }
@@ -171,6 +172,18 @@ textarea.input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas
   .run-dock { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-lg); padding: var(--space-md) var(--space-lg); }
   .run-dock .btn { width: auto; flex: none; }
   .run-help { display: block; }
+}
+@media (max-width: 640px) {
+  .site-chip { min-height: 44px; }
+  #sec-run { bottom: var(--space-sm); }
+  .run-dock { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-sm); padding: var(--space-sm); min-height: 72px; }
+  .run-dock .btn { width: auto; flex: none; min-height: 48px; padding-left: var(--space-md); padding-right: var(--space-md); }
+  .run-text { flex: 1; }
+  .run-text strong { font-size: var(--fs-m); line-height: 1.25; }
+  .run-help { display: none; }
+  .lbl-full { display: none; }
+  .lbl-short { display: inline; }
+  .run-note { font-size: 12px; line-height: 1.3; }
 }
 
 @media (max-width: 640px) { #user-email { display: none; } }

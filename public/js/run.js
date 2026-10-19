@@ -502,7 +502,7 @@
     broke: '<span class="verdict is-broke">' + ic("triangle-alert") + "Broke</span>",
     same: '<span class="verdict is-same">' + ic("minus") + "Same</span>",
   };
-  async function doCompare(btn) {
+  async function doCompare(btn, retried) {
     const sel = $("compare-with");
     if (!sel) return;
     const out = $("compare-result");
@@ -537,6 +537,8 @@
         icons();
         S.compareDone = true;
       } catch (err) {
+        // The automatic compare right after a run can hit a dropped connection: try once more quietly.
+        if (!btn && !retried && err.status === 0) { setTimeout(() => doCompare(null, true), 1500); return; }
         out.innerHTML = '<div class="banner banner-error">' + ic("triangle-alert") + "<div>" + e(err.message) + "</div></div>";
         icons();
       }
@@ -846,9 +848,14 @@
     document.addEventListener("toggle", (ev) => {
       const d = ev.target;
       if (d.classList && d.classList.contains("checks")) S.detailsOpen[d.dataset.rid] = d.open;
-      if (d.id === "how-to-read") storeSet(KEY_CLOSED, d.open ? "0" : "1");
+      if (d.id === "how-to-read") {
+        if (d.dataset.auto) { delete d.dataset.auto; return; } // phone default, not the reader's choice
+        storeSet(KEY_CLOSED, d.open ? "0" : "1");
+      }
     }, true);
-    if (storeGet(KEY_CLOSED) === "1") $("how-to-read").removeAttribute("open");
+    const howEl = $("how-to-read");
+    if (storeGet(KEY_CLOSED) === "1") howEl.removeAttribute("open");
+    else if (window.matchMedia("(max-width: 640px)").matches && howEl.open) { howEl.dataset.auto = "1"; howEl.open = false; }
 
     if (!RUN_ID) { notFound(); return; }
     let d;

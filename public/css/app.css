@@ -291,7 +291,10 @@ a.nav-pill:hover { color: var(--text); text-decoration: none; }
 }
 a.nav-pill.is-active:hover, a.nav-pill[aria-current="page"]:hover { color: var(--on-accent); }
 @media (max-width: 640px) {
-  .nav-pill { padding: 0 var(--space-sm); max-width: 160px; }
+  .nav-pills { padding: 2px; gap: 2px; }
+  .nav-pill { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 var(--space-sm); max-width: 160px; }
+  .nav-pill.is-active, .nav-pill[aria-current="page"] { flex: none; max-width: 90px; }
+  .nav-pills > .nav-pill:first-child:not(:last-child) { display: none; }
 }
 
 .container {

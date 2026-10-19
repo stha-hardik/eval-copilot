@@ -805,7 +805,7 @@
           (note ? '<p class="run-note" id="run-note">' + esc(note) + "</p>" : "") +
         "</div>" +
         '<button class="btn btn-primary" type="button" data-act="run-all" id="run-btn"' + (can ? "" : " disabled") +
-          (can ? "" : ' aria-describedby="run-note"') + ">" + icon("play") + "Run all approved pairs" + (can ? " (" + c.approved + ")" : "") + "</button>" +
+          (can ? "" : ' aria-describedby="run-note"') + ">" + icon("play") + '<span class="lbl-full">Run all approved pairs</span><span class="lbl-short">Run all</span>' + (can ? " (" + c.approved + ")" : "") + "</button>" +
       "</div>";
     icons();
   }
