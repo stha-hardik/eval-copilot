@@ -6,15 +6,16 @@
   <title>Log in · Eval Co-pilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
   <main class="auth-wrap">
-    <section class="card auth-card stack-lg" aria-labelledby="app-name">
-      <div class="stack">
+    <section class="card auth-card stack-lg enter" aria-labelledby="app-name">
+      <div class="auth-head">
+        <div class="logo-tile settle" aria-hidden="true"><span><i data-lucide="check"></i></span></div>
         <h1 id="app-name" class="brand-name">Eval Co-pilot</h1>
-        <p class="tagline">Test your live site the way your customers use it — on a phone and a laptop.</p>
+        <p class="tagline">Catch what's broken on your site before your customers do.</p>
       </div>
 
       <div class="segmented" role="group" aria-label="Log in or sign up">
@@ -23,24 +24,31 @@
       </div>
 
       <form id="auth-form" class="stack" novalidate>
-        <div id="form-banner" role="alert"></div>
-
         <div class="field">
           <label class="label" for="email">Email</label>
-          <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email"
-                 autocapitalize="off" spellcheck="false" placeholder="you@yourstore.com" aria-describedby="email-error">
+          <div class="input-wrap has-icon">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="at-sign"></i></span>
+            <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email"
+                   autocapitalize="off" spellcheck="false" placeholder="you@yourstore.com" aria-describedby="email-error">
+          </div>
           <div class="error-msg" id="email-error"></div>
         </div>
 
         <div class="field">
           <label class="label" for="password">Password</label>
-          <input class="input" id="password" name="password" type="password" autocomplete="current-password"
-                 aria-describedby="password-hint password-error">
+          <div class="input-wrap has-icon has-trail">
+            <span class="input-icon" aria-hidden="true"><i data-lucide="lock"></i></span>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password"
+                   aria-describedby="password-hint password-error">
+            <button class="input-trail" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show password"><i data-lucide="eye" aria-hidden="true"></i></button>
+          </div>
           <div class="hint" id="password-hint" hidden>At least 8 characters</div>
           <div class="error-msg" id="password-error"></div>
         </div>
 
-        <button class="btn btn-primary" id="submit" type="submit">Log in</button>
+        <button class="btn btn-primary btn-block" id="submit" type="submit"><span id="submit-label">Log in</span><i data-lucide="arrow-right" aria-hidden="true"></i></button>
+
+        <div id="form-banner" role="alert"></div>
       </form>
     </section>
   </main>

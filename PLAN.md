@@ -32,3 +32,17 @@ Done when: live link opens, `/api/health` returns `{"ok": true}`.
 | UI/UX skill digest | Haiku | `docs/UIUX_RULES.md` |
 
 Opus reviews every diff and runs the tests before each commit.
+
+## M6b: Redesign to the owner's "Tactile Calm" mockups + motion (19 Oct 2026)
+
+Brief for every agent: `docs/REDESIGN.md` (mockups, tokens, motion rules from the owner's
+kole-uiux-skills `references/animation.md`, and the mockup decoration we leave out).
+
+| Phase | Piece | Model | Files owned |
+|---|---|---|---|
+| 1 | Design system (tokens, surfaces, motion), topbar / context nav, login, My projects + New project modal | Sonnet | `public/css/app.css`, `public/index.html`, `public/js/login.js`, `public/home.html`, `public/js/home.js`, `docs/UI_KIT.md` |
+| 2 (parallel) | Golden tests screen | Sonnet | `public/project.html`, `public/js/project.js`, `public/css/project.css` |
+| 2 (parallel) | Results screen: live table, 3 key points, re-run, "Good now?" panel, compare | Sonnet | `public/run.html`, `public/js/run.js`, `public/css/run.css` |
+| 3 | Review every diff, tests, deploy, eval run in Chrome at phone + laptop width | Opus | — |
+
+Phase 2 starts only after Phase 1 is reviewed, because both screens build on the new `app.css`.

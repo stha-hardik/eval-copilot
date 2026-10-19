@@ -11,6 +11,8 @@
   var hint = document.getElementById("password-hint");
   var banner = document.getElementById("form-banner");
   var submit = document.getElementById("submit");
+  var submitLabel = document.getElementById("submit-label");
+  var eye = document.getElementById("toggle-password");
   var tabs = { login: document.getElementById("tab-login"), signup: document.getElementById("tab-signup") };
 
   function icons() { if (window.lucide) window.lucide.createIcons(); }
@@ -21,7 +23,7 @@
     tabs.signup.setAttribute("aria-pressed", String(next === "signup"));
     hint.hidden = next !== "signup";
     password.setAttribute("autocomplete", next === "signup" ? "new-password" : "current-password");
-    submit.textContent = next === "signup" ? "Create account" : "Log in";
+    submitLabel.textContent = next === "signup" ? "Create account" : "Log in";
     document.title = (next === "signup" ? "Sign up" : "Log in") + " · Eval Co-pilot";
     clearErrors();
   }
@@ -34,11 +36,24 @@
     password.classList.remove("is-error");
   }
 
-  function showBanner(msg) {
-    banner.innerHTML = '<div class="banner banner-error"><i data-lucide="circle-alert" aria-hidden="true"></i><span>' +
-      EC.esc(msg) + "</span></div>";
+  // Title line plus an optional plain explanation.
+  function showBanner(msg, detail) {
+    banner.innerHTML = '<div class="banner banner-error"><span class="banner-icon"><i data-lucide="circle-alert" aria-hidden="true"></i></span>' +
+      '<div class="banner-body"><span class="banner-title">' + EC.esc(msg) + "</span>" +
+      (detail ? "<span>" + EC.esc(detail) + "</span>" : "") + "</div></div>";
     icons();
   }
+
+  eye.addEventListener("click", function () {
+    var show = password.type === "password";
+    password.type = show ? "text" : "password";
+    eye.setAttribute("aria-pressed", String(show));
+    eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    eye.title = show ? "Hide password" : "Show password";
+    eye.innerHTML = '<i data-lucide="' + (show ? "eye-off" : "eye") + '" aria-hidden="true"></i>';
+    icons();
+  });
+  icons();
 
   function fieldError(input, msgEl, msg) {
     input.classList.add("is-error");
@@ -90,7 +105,7 @@
         await new Promise(function () {}); // stay greyed out while the page changes
       } catch (err) {
         if (err instanceof EC.ApiError) {
-          if (err.status === 401) showBanner("That email and password don't match.");
+          if (err.status === 401) showBanner("That email and password don't match.", "Check what you typed and try again.");
           else if (err.status === 409 && mode === "signup") showBanner("Check your email to confirm your account, then log in.");
           else showBanner(err.message);
         } else {

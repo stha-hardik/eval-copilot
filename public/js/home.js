@@ -1,4 +1,4 @@
-// Screen 2: Home, "My sites".
+// Screen 2: Home, "My projects".
 (function () {
   if (!EC.requireLogin()) return;
 
@@ -14,58 +14,109 @@
 
   // ---------- States ----------
   function showLoading() {
-    var rows = "";
-    for (var i = 0; i < 3; i++) rows += '<li><div class="skeleton" style="height:84px"></div></li>';
-    content.innerHTML = '<ul class="list" aria-busy="true" aria-label="Loading your sites">' + rows + "</ul>";
+    var cards = "";
+    for (var i = 0; i < 3; i++) cards += '<li><div class="skeleton skeleton-card"></div></li>';
+    content.innerHTML = '<ul class="project-grid" aria-busy="true" aria-label="Loading your projects">' + cards + "</ul>";
   }
 
   function showError(msg) {
     content.innerHTML =
-      '<div class="banner banner-error" role="alert"><i data-lucide="circle-alert" aria-hidden="true"></i>' +
-      "<span>" + EC.esc(msg) + '</span><button class="btn btn-secondary btn-sm" id="retry" type="button">Try again</button></div>';
+      '<div class="banner banner-error enter" role="alert"><span class="banner-icon"><i data-lucide="circle-alert" aria-hidden="true"></i></span>' +
+      '<div class="banner-body"><span>' + EC.esc(msg) + '</span></div><button class="btn btn-secondary btn-sm" id="retry" type="button">Try again</button></div>';
     icons();
     document.getElementById("retry").addEventListener("click", load);
   }
 
   function showEmpty() {
     content.innerHTML =
-      '<div class="card empty"><i data-lucide="globe" aria-hidden="true"></i>' +
-      '<h2 class="empty-title">No sites yet</h2>' +
-      "<p>Add the live link of a site you want to test.</p>" +
-      '<button class="btn btn-primary" id="first-site" type="button">Add your first site</button></div>';
+      '<div class="card empty enter">' +
+      '<span class="empty-icon"><i data-lucide="folder-plus" aria-hidden="true"></i></span>' +
+      '<h2 class="empty-title">No projects yet. Add the first website you want to test.</h2>' +
+      '<button class="btn btn-secondary" id="first-site" type="button"><i data-lucide="plus" aria-hidden="true"></i>Add a website</button></div>';
     icons();
     var b = document.getElementById("first-site");
     b.addEventListener("click", function () { openForm(b); });
   }
 
-  function lastRunText(p) {
+  // "12 Oct", with the year only when it is not this year
+  function shortDate(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    var opts = { day: "numeric", month: "short" };
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+    return d.toLocaleDateString(undefined, opts);
+  }
+
+  function statusPill(p) {
     var r = p.last_run;
-    if (!r) return "Not run yet";
+    if (!r) return '<span class="pill pill-neutral">Not run yet</span>';
+    if (!r.total) return '<span class="pill pill-neutral">No results</span>';
+    if (r.passed === r.total) return '<span class="pill pill-pass">All passed</span>';
+    return '<span class="pill pill-fail">' + EC.esc(r.passed + " of " + r.total + " passed") + "</span>";
+  }
+
+  function trayHtml(p) {
+    var r = p.last_run;
+    if (!r) {
+      return '<div class="run-tray"><span class="run-tray-text">Last run: none yet</span>' +
+        '<div class="progress progress-sm" aria-hidden="true"><div class="progress-fill" style="--p:0"></div></div></div>';
+    }
     var parts = ["Run " + r.run_number];
     if (r.total) parts.push(r.passed + " of " + r.total + " passed");
-    if (r.started_at) parts.push(EC.fmtDate(r.started_at));
-    return parts.join(" · ");
+    var d = shortDate(r.started_at);
+    if (d) parts.push(d);
+    var bar = "";
+    if (r.total) {
+      var frac = Math.max(0, Math.min(1, r.passed / r.total));
+      bar = '<div class="progress progress-sm" role="progressbar" aria-label="Checks passed" aria-valuemin="0" aria-valuemax="' +
+        Number(r.total) + '" aria-valuenow="' + Number(r.passed) + '"><div class="progress-fill ' +
+        (r.passed === r.total ? "is-pass" : "is-fail") + '" style="--p:' + frac.toFixed(4) + '"></div></div>';
+    }
+    return '<div class="run-tray"><span class="run-tray-text">Last run: ' + EC.esc(parts.join(" · ")) + "</span>" + bar + "</div>";
+  }
+
+  function statsHtml(projects) {
+    var latest = null;
+    projects.forEach(function (p) {
+      var t = p.last_run && p.last_run.started_at ? new Date(p.last_run.started_at) : null;
+      if (t && !isNaN(t.getTime()) && (!latest || t > latest)) latest = t;
+    });
+    var when = latest ? shortDate(latest.toISOString()) : "No runs yet";
+    return '<div class="stats enter" style="--i:1">' +
+      '<div class="stat"><div><div class="stat-label">Projects</div><div class="stat-value">' + projects.length + '</div></div>' +
+        '<span class="icon-tile"><i data-lucide="layout-grid" aria-hidden="true"></i></span></div>' +
+      '<div class="stat"><div><div class="stat-label">Most recent run</div><div class="stat-value">' + EC.esc(when) + '</div></div>' +
+        '<span class="icon-tile"><i data-lucide="history" aria-hidden="true"></i></span></div>' +
+      "</div>";
   }
 
   function showList(projects) {
-    var html = projects.map(function (p) {
+    var cards = projects.map(function (p, idx) {
       var href = "/project.html?id=" + encodeURIComponent(p.id);
-      return '<li class="list-row is-clickable" data-href="' + EC.esc(href) + '">' +
-        '<div class="list-row-main">' +
-          '<div class="list-row-title truncate">' + EC.esc(p.name) + "</div>" +
-          '<div class="list-row-meta small truncate" title="' + EC.esc(p.site_url) + '">' + EC.esc(p.site_url) + "</div>" +
-          '<div class="list-row-meta">' + EC.esc(lastRunText(p)) + "</div>" +
-        "</div>" +
-        '<a class="btn btn-secondary" href="' + EC.esc(href) + '" aria-label="Open ' + EC.esc(p.name) + '">Open</a>' +
-        "</li>";
+      return '<li class="enter" style="--i:' + (idx + 2) + '"><article class="project-card" data-href="' + EC.esc(href) + '">' +
+        '<div class="project-card-top"><span class="icon-tile"><i data-lucide="globe" aria-hidden="true"></i></span>' + statusPill(p) + "</div>" +
+        '<div class="project-info"><h2 class="project-name">' + EC.esc(p.name) + "</h2>" +
+          '<a class="project-link" href="' + EC.esc(p.site_url) + '" target="_blank" rel="noopener" title="' + EC.esc(p.site_url) + '">' +
+          "<span>" + EC.esc(p.site_url) + '</span><i data-lucide="external-link" aria-hidden="true"></i></a></div>' +
+        trayHtml(p) +
+        '<div class="project-card-foot"><a class="btn btn-secondary btn-sm" href="' + EC.esc(href) + '" aria-label="Open ' + EC.esc(p.name) + '">Open<i data-lucide="chevron-right" aria-hidden="true"></i></a></div>' +
+        "</article></li>";
     }).join("");
-    content.innerHTML = '<ul class="list">' + html + "</ul>";
-    Array.prototype.forEach.call(content.querySelectorAll(".list-row"), function (row) {
-      row.addEventListener("click", function (ev) {
+    var tile = '<li class="enter" style="--i:' + (projects.length + 2) + '"><button class="add-tile" id="add-tile" type="button">' +
+      '<span class="add-tile-icon"><i data-lucide="plus" aria-hidden="true"></i></span>' +
+      '<span class="add-tile-title">Add a website</span>' +
+      '<span class="add-tile-help">Test another site as a phone and a laptop.</span></button></li>';
+    content.innerHTML = statsHtml(projects) + '<ul class="project-grid">' + cards + tile + "</ul>";
+    icons();
+    Array.prototype.forEach.call(content.querySelectorAll(".project-card"), function (card) {
+      card.addEventListener("click", function (ev) {
         if (ev.target.closest("a, button")) return;
-        location.href = row.getAttribute("data-href");
+        location.href = card.getAttribute("data-href");
       });
     });
+    var at = document.getElementById("add-tile");
+    at.addEventListener("click", function () { openForm(at); });
   }
 
   async function load() {
@@ -79,23 +130,26 @@
     }
   }
 
-  // ---------- New site form (modal) ----------
+  // ---------- New project form (modal) ----------
   function openForm(opener) {
     var backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
     backdrop.innerHTML =
       '<form class="modal stack" role="dialog" aria-modal="true" aria-labelledby="ns-title" novalidate>' +
-        '<div><h2 id="ns-title">New site</h2><p class="muted">Tell us which site to test.</p></div>' +
+        '<button class="icon-btn modal-close" type="button" id="ns-close" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>' +
+        '<div class="modal-head"><span class="eyebrow"><i data-lucide="globe" aria-hidden="true"></i>New site</span>' +
+          '<h2 id="ns-title">Test a new website</h2><p>We\u2019ll test it as a phone and as a laptop.</p></div>' +
         '<div id="ns-banner" role="alert"></div>' +
-        '<div class="field"><label class="label" for="ns-name">Name</label>' +
-          '<input class="input" id="ns-name" type="text" autocomplete="off" maxlength="80" placeholder="Bubl Solar">' +
+        '<div class="field"><label class="label" for="ns-name">Project name</label>' +
+          '<input class="input" id="ns-name" type="text" autocomplete="off" maxlength="80" placeholder="e.g. My Online Store">' +
           '<div class="error-msg" id="ns-name-err"></div></div>' +
-        '<div class="field"><label class="label" for="ns-url">Link to your live site</label>' +
-          '<input class="input" id="ns-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://yourstore.com" aria-describedby="ns-url-hint ns-url-err">' +
-          '<div class="hint" id="ns-url-hint">Use the public link anyone can open. Never paste passwords or keys.</div>' +
+        '<div class="field"><label class="label" for="ns-url">Website link</label>' +
+          '<div class="input-wrap has-trail"><input class="input" id="ns-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://yourstore.com" aria-describedby="ns-url-hint ns-url-err">' +
+          '<span class="input-trail is-static" aria-hidden="true"><i data-lucide="link"></i></span></div>' +
+          '<div class="hint" id="ns-url-hint"><i data-lucide="shield-check" aria-hidden="true"></i> Public link only. We never ask for passwords or keys.</div>' +
           '<div class="error-msg" id="ns-url-err"></div></div>' +
         '<div class="modal-actions"><button class="btn btn-ghost" type="button" id="ns-cancel">Cancel</button>' +
-          '<button class="btn btn-primary" type="submit" id="ns-create">Create</button></div>' +
+          '<button class="btn btn-primary" type="submit" id="ns-create"><i data-lucide="rocket" aria-hidden="true"></i>Create project</button></div>' +
       "</form>";
     document.body.appendChild(backdrop);
     icons();
@@ -108,20 +162,29 @@
     var banner = backdrop.querySelector("#ns-banner");
     var create = backdrop.querySelector("#ns-create");
     var cancel = backdrop.querySelector("#ns-cancel");
+    var closeX = backdrop.querySelector("#ns-close");
+    var closing = false;
     var prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     name.focus();
 
     function close() {
+      if (closing) return;
+      closing = true;
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = prevOverflow;
-      backdrop.remove();
       if (opener && document.body.contains(opener)) opener.focus();
+      // let the exit animation play (about 270ms), then remove
+      backdrop.classList.add("is-closing");
+      var removed = false;
+      function done() { if (!removed) { removed = true; backdrop.remove(); } }
+      backdrop.addEventListener("animationend", function (ev) { if (ev.target === backdrop) done(); });
+      setTimeout(done, 400);
     }
     function onKey(ev) {
       if (ev.key === "Escape" && !create.disabled) { ev.preventDefault(); close(); return; }
       if (ev.key !== "Tab") return;
-      var f = Array.prototype.filter.call(form.querySelectorAll("input, button"), function (el) { return !el.disabled; });
+      var f = Array.prototype.filter.call(form.querySelectorAll("input, button:not(.input-trail)"), function (el) { return !el.disabled; });
       if (!f.length) return;
       var first = f[0], last = f[f.length - 1];
       if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
@@ -129,6 +192,7 @@
     }
     document.addEventListener("keydown", onKey, true);
     cancel.addEventListener("click", close);
+    closeX.addEventListener("click", function () { if (!create.disabled) close(); });
     backdrop.addEventListener("mousedown", function (ev) { if (ev.target === backdrop && !create.disabled) close(); });
 
     function setErr(input, el, msg) {
@@ -154,8 +218,8 @@
           location.href = "/project.html?id=" + encodeURIComponent(res.id);
           await new Promise(function () {});
         } catch (err) {
-          banner.innerHTML = '<div class="banner banner-error"><i data-lucide="circle-alert" aria-hidden="true"></i><span>' +
-            EC.esc(err && err.message ? err.message : "Something went wrong. Please try again.") + "</span></div>";
+          banner.innerHTML = '<div class="banner banner-error"><span class="banner-icon"><i data-lucide="circle-alert" aria-hidden="true"></i></span><div class="banner-body"><span>' +
+            EC.esc(err && err.message ? err.message : "Something went wrong. Please try again.") + "</span></div></div>";
           icons();
         }
       }, "Creating…");
