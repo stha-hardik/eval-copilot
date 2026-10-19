@@ -562,6 +562,23 @@ def test_read_unknown_project_is_404(api):
     assert err(api.get(f"/api/projects/{uuid.uuid4()}"), 404) == "We couldn't find this site."
 
 
+@pytest.mark.xfail(reason="BUG: ids from the URL go straight into a PostgREST filter (index.py:153, 160, 328, 509, "
+                          "686); Postgres answers 22P02 for a non-uuid and supa.Db._req (supa.py:139) turns that "
+                          "into a 500, but docs/API.md promises 404")
+@pytest.mark.parametrize("method,path", [
+    ("GET", "/api/projects/not-a-uuid"), ("GET", "/api/runs/not-a-uuid"), ("GET", "/api/runs/not-a-uuid/compare"),
+    ("PATCH", "/api/pairs/not-a-uuid"), ("PATCH", "/api/result-checks/not-a-uuid"),
+    ("POST", "/api/runs/not-a-uuid/finish"), ("POST", "/api/projects/not-a-uuid/suggestions"),
+])
+def test_a_malformed_id_in_the_url_is_404(api, method, path):
+    err(api.call(method, path, json={"passed": True, "approved": True}), 404)
+
+
+@pytest.mark.xfail(reason="BUG: compare passes ?with= straight to the database (index.py:654); a non-uuid gives 500")
+def test_compare_with_a_malformed_run_id_is_404(api, world, ran):
+    err(api.get(f"/api/runs/{ran.id}/compare?with=nonsense"), 404)
+
+
 # ---------------------------------------------------------------- user B cannot see or touch user A's data
 
 def test_user_b_sees_nothing_of_user_a(env, api, world, ran):
@@ -591,9 +608,7 @@ def test_user_b_cannot_change_user_a_data(env, api, world, ran):
 
 def test_user_b_cannot_compare_into_user_a_runs(api, world, ran):
     mine = new_project(api, tok=TOK_B, site_url="https://b.example.com")
-    b_world = SimpleNamespace(pid=mine, ids={}, names={})
-    b_pair = new_pair(api, mine, "B pair", "/", [chk("status_ok")], tok=TOK_B, approved=True)
-    b_world.names[b_pair["id"]] = "b"
+    new_pair(api, mine, "B pair", "/", [chk("status_ok")], tok=TOK_B, approved=True)
     b_run = ok(api.post(f"/api/projects/{mine}/runs", {"kind": "full"}, tok=TOK_B), 201)["run"]
     assert err(api.get(f"/api/runs/{b_run['id']}/compare?with={ran.id}", tok=TOK_B), 404)
 
@@ -956,7 +971,7 @@ def test_door_9_blocked_page_is_cant_test(env, api, world, ran):
         assert [c["passed"] for c in row["checks"]] == [None, None]
         assert all(c["why"] == BLOCKED_WHY for c in row["checks"])
         assert row["what_site_said"] == "The site blocked us (status 403)."
-    assert env.groq.called("judge") == [c for c in env.groq.called("judge") if c[1] != world.ids["blocked"]]
+    assert all(c[1] != world.ids["blocked"] for c in env.groq.called("judge"))  # nothing to ask the AI about
 
 
 def test_door_9_404_page_fails_with_the_status_check_carrying_the_reason(env, api, world, ran):
@@ -1001,8 +1016,9 @@ def test_door_9_cart_post_is_checked_against_the_cart(env, api, world, ran):
     count = laptop["checks"][1]
     assert (count["rule"], count["expected"], count["passed"]) == ("count_equals", "item_count=1", False)
     assert "item_count = 5" in count["why"] and laptop["why"] == count["why"]
-    assert (env.site.calls_to("/cart/add.js")[0][1:], ) == (("POST", "/cart/add.js",
-                                                              {"items": [{"handle": "solaris", "quantity": 1}]}), )
+    sent = env.site.calls_to("/cart/add.js")
+    assert sorted(c[0] for c in sent) == ["laptop", "phone"]
+    assert all(c[1:] == ("POST", "/cart/add.js", {"items": [{"handle": "solaris", "quantity": 1}]}) for c in sent)
 
 
 def test_door_9_manual_check_waits_for_a_human(api, world, ran):
@@ -1170,7 +1186,7 @@ def test_diagnose_missing_text_falls_back_to_the_row_reason(env, api, world, mon
     monkeypatch.setattr(groq, "diagnose", lambda items, timeout=None: {})
     r = run_everything(api, world, {"kind": "changed", "pair_ids": [world.ids["cart"]]})
     (point,) = r.done["points"]
-    assert point["explanation"] == "The cart shows item_count = 5 (expected 1)." or "item_count" in point["explanation"]
+    assert point["explanation"] == "AI: The cart shows item_count = 5 (expected 1)."
 
 
 def test_read_run_shape_and_order(api, world, ran):
@@ -1285,17 +1301,17 @@ def test_full_run_has_no_changed_entries_and_stores_no_changes(env, api, ran):
 
 
 def test_rerun_leaves_run_one_untouched(env, api, world, ran):
-    snap_body = ok(api.get(f"/api/runs/{ran.id}"))
-    snap_results = json.dumps([r for r in env.store["results"] if r["run_id"] == ran.id], sort_keys=True)
-    snap_checks = json.dumps([c for c in env.store["result_checks"]], sort_keys=True)
+    def stored():
+        results = [r for r in env.store["results"] if r["run_id"] == ran.id]
+        ids = {r["id"] for r in results}
+        return json.dumps([results, [c for c in env.store["result_checks"] if c["result_id"] in ids],
+                           [p for p in env.store["diagnosis_points"] if p["run_id"] == ran.id]], sort_keys=True)
+
+    snap_body, snap_store = ok(api.get(f"/api/runs/{ran.id}")), stored()
     env.site.version = "fixed"
     run_everything(api, world, {"kind": "full"})  # even a second FULL run on the fixed shop
-    assert ok(api.get(f"/api/runs/{ran.id}")) | {"earlier_runs": []} == snap_body
-    assert json.dumps([r for r in env.store["results"] if r["run_id"] == ran.id], sort_keys=True) == snap_results
-    assert snap_checks in json.dumps(env.store["result_checks"], sort_keys=True) or True
-    again = ok(api.get(f"/api/runs/{ran.id}"))
-    assert again["rows"] == snap_body["rows"] and again["points"] == snap_body["points"]
-    assert again["run"] == snap_body["run"]
+    assert ok(api.get(f"/api/runs/{ran.id}")) == snap_body
+    assert stored() == snap_store
 
 
 def test_rerun_does_not_change_run_one_even_through_the_api_rules(env, api, world, ran):

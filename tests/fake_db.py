@@ -146,6 +146,18 @@ OWNER_PARENT = {
 
 RESERVED = {"select", "order", "limit"}
 
+# columns of type uuid: Postgres refuses anything else with 22P02 (PostgREST answers 400 -> Db maps it to 500)
+UUID_COLS = {name: {"id"} | {col for child, col, _ in FKS if child == name} for name in TABLES}
+UUID_COLS["projects"].add("user_id")
+
+
+def _check_uuid(table: str, col: str, text):
+    if col in UUID_COLS[table] and text is not None:
+        try:
+            uuid.UUID(str(text))
+        except ValueError:
+            raise _pg_error("22P02") from None
+
 
 # ---------------------------------------------------------------- the shared store
 
@@ -233,10 +245,16 @@ def _num(value):
     return None
 
 
-def _matches(row: dict, col: str, expr: str) -> bool:
+def _matches(table: str, row: dict, col: str, expr: str) -> bool:
     if col not in row:
         raise _pg_error("42703")
     op, _, arg = expr.partition(".")
+    if op in ("eq", "lt"):
+        _check_uuid(table, col, arg)
+    elif op == "in":
+        for item in arg.strip("()").split(","):
+            if item.strip():
+                _check_uuid(table, col, item.strip())
     value = row[col]
     if op == "eq":
         return _eq(value, arg)
@@ -346,7 +364,7 @@ class FakeDb:
             ctx = self._ctx(table)
             rows = self._visible(ctx, table)
             for col, expr in _filters(params):
-                rows = [r for r in rows if _matches(r, col, expr)]
+                rows = [r for r in rows if _matches(table, r, col, expr)]
             if params.get("order"):
                 for part in reversed(_split_top(params["order"])):
                     col, _, direction = part.partition(".")
@@ -406,6 +424,7 @@ class FakeDb:
                 for col in raw:
                     if col not in spec["cols"]:
                         raise _pg_error("PGRST204")
+                    _check_uuid(table, col, raw[col])
                 if "insert" not in spec["ops"]:
                     raise _pg_error("42501")
                 full = {}
@@ -434,11 +453,12 @@ class FakeDb:
             for col in values:
                 if col not in spec["cols"]:
                     raise _pg_error("PGRST204")
+                _check_uuid(table, col, values[col])
             if "update" not in spec["ops"]:
                 return []  # no policy: no row is ever updatable
             targets = self._visible(ctx, table)
             for col, expr in _filters(filters):
-                targets = [r for r in targets if _matches(r, col, expr)]
+                targets = [r for r in targets if _matches(table, r, col, expr)]
             targets = [r for r in targets if self._using_update(table, r)]
             new_rows = []
             for old in targets:
@@ -457,7 +477,7 @@ class FakeDb:
                 return []
             targets = self._visible(ctx, table)
             for col, expr in _filters(filters):
-                targets = [r for r in targets if _matches(r, col, expr)]
+                targets = [r for r in targets if _matches(table, r, col, expr)]
             gone = copy.deepcopy(targets)
             for row in targets:
                 self._remove(table, row)
@@ -476,8 +496,8 @@ class FakeDb:
 #  * Timestamps: every row gets its own, strictly increasing created_at. Real Postgres gives all rows of
 #    one INSERT statement the same now(), so ordering by created_at inside a batch is a tie there.
 #  * Rows come back in insertion order unless `order` is given (Postgres promises nothing).
-#  * Column types are not enforced beyond JSON round-tripping (no int/uuid/timestamptz parsing, so a
-#    malformed uuid in a filter simply matches nothing instead of Postgres' 22P02 error).
+#  * Column types are barely enforced: only uuid columns are (a bad uuid gives 22P02 like Postgres) and
+#    values must survive a JSON round-trip. No int/boolean/timestamptz parsing or casting.
 #  * Each call is its own transaction; there is no isolation level, no deadlocks, no sequences.
 #    A race is only simulated through `FakeStore.before_insert`.
 #  * `Prefer: return=representation` is always on; PostgREST's 406/416 and pagination caps don't exist.
