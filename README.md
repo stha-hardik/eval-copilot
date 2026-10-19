@@ -6,7 +6,7 @@ A builder thinks their website works because they only tried the things they pic
 
 ## 2. Live link
 
-Live app: _coming soon, see REPORT.md_
+Live app: https://eval-copilot.vercel.app
 
 Repo: https://github.com/stha-hardik/eval-copilot
 
@@ -60,7 +60,7 @@ eval-copilot/
 
 ## 6. Run it locally
 
-You need Python 3.12 or newer. Install the packages from the repo root:
+You need Python 3.10 or newer (Vercel runs 3.12). If `python3` is older, run `uv venv --python 3.12` and `source .venv/bin/activate` first. Install the packages from the repo root:
 
 ```
 pip install -r requirements.txt uvicorn
